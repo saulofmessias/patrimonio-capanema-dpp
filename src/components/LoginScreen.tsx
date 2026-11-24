@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { PatrimonioRecord } from '../types/appsheet';
-import { 
-  Shield, Lock, AlertCircle, 
-  Building2, RefreshCw, Tag, MapPin
+import {
+  Shield, Lock, AlertCircle,
+  Building2, RefreshCw, Tag, MapPin, Github
 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -12,28 +12,56 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ scannedBem, scannedCodigo }) => {
-  const { loginGoogle, logout, firebaseUser, isUnauthorized, unauthorizedEmail } = useAuth();
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const { loginGoogle, loginGithub, logout, firebaseUser, isUnauthorized, unauthorizedEmail } = useAuth();
+  const [loggingProvider, setLoggingProvider] = useState<'google' | 'github' | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleLogin = async () => {
+  const isLoggingIn = loggingProvider !== null;
+
+  const traduzirErro = (err: unknown, provedor: 'google' | 'github'): string | null => {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('popup-closed-by-user') || msg.includes('cancelled-popup-request')) {
+      // Usuário fechou a janela de login manualmente
+      return null;
+    }
+    if (msg.includes('popup-blocked')) {
+      return `O navegador bloqueou a janela do ${provedor === 'google' ? 'Google' : 'GitHub'}. Permita pop-ups para este site e tente novamente.`;
+    }
+    if (msg.includes('unauthorized-domain')) {
+      return provedor === 'google'
+        ? 'Este endereço ainda não está autorizado para Login Google. Acesse pelo link oficial publicado ou autorize o domínio no Firebase.'
+        : 'Este endereço ainda não está autorizado para Login GitHub. Acesse pelo link oficial publicado ou autorize o domínio no Firebase.';
+    }
+    if (msg.includes('github-no-email')) {
+      return 'Sua conta do GitHub não está com o e-mail visível. Torne o e-mail público nas configurações do GitHub ou use o login com a Conta Institucional.';
+    }
+    if (msg.includes('popup-closed') || msg.includes('access_denied')) {
+      return `O acesso via ${provedor === 'google' ? 'Google' : 'GitHub'} foi negado. Verifique as permissões da conta e tente novamente.`;
+    }
+    return `Não foi possível concluir o login com o ${provedor === 'google' ? 'Google' : 'GitHub'}. Verifique sua conexão e tente novamente.`;
+  };
+
+  const handleLoginGoogle = async () => {
     try {
-      setIsLoggingIn(true);
+      setLoggingProvider('google');
       setErrorMsg(null);
       await loginGoogle();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('popup-closed-by-user') || msg.includes('cancelled-popup-request')) {
-        // Usuário fechou a janela de login manualmente
-      } else if (msg.includes('popup-blocked')) {
-        setErrorMsg('O navegador bloqueou a janela do Google. Permita pop-ups para este site e tente novamente.');
-      } else if (msg.includes('unauthorized-domain')) {
-        setErrorMsg('Este endereço ainda não está autorizado para Login Google. Acesse pelo link oficial publicado ou autorize o domínio no Firebase.');
-      } else {
-        setErrorMsg('Não foi possível concluir o login com o Google. Verifique sua conexão e tente novamente.');
-      }
+      setErrorMsg(traduzirErro(err, 'google'));
     } finally {
-      setIsLoggingIn(false);
+      setLoggingProvider(null);
+    }
+  };
+
+  const handleLoginGithub = async () => {
+    try {
+      setLoggingProvider('github');
+      setErrorMsg(null);
+      await loginGithub();
+    } catch (err: unknown) {
+      setErrorMsg(traduzirErro(err, 'github'));
+    } finally {
+      setLoggingProvider(null);
     }
   };
 
@@ -160,11 +188,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ scannedBem, scannedCod
               <div className="space-y-3">
                 <button
                   type="button"
-                  onClick={handleLogin}
+                  onClick={handleLoginGoogle}
                   disabled={isLoggingIn}
                   className="w-full py-3 px-4 bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 hover:from-blue-600 hover:to-indigo-600 text-white font-bold rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-3 shadow-lg shadow-blue-900/30 active:scale-98 transition-all cursor-pointer disabled:opacity-60"
                 >
-                  {isLoggingIn ? (
+                  {loggingProvider === 'google' ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
                       <span>Autenticando com o Google...</span>
@@ -179,6 +207,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ scannedBem, scannedCod
                         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                       </svg>
                       <span>Entrar com Conta Institucional</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLoginGithub}
+                  disabled={isLoggingIn}
+                  className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-3 shadow-lg shadow-slate-900/20 active:scale-98 transition-all cursor-pointer disabled:opacity-60"
+                >
+                  {loggingProvider === 'github' ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Autenticando com o GitHub...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Github className="w-4 h-4 shrink-0" />
+                      <span>Entrar com GitHub</span>
                     </>
                   )}
                 </button>

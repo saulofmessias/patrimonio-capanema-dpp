@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User as FirebaseUser, onAuthStateChanged } from 'firebase/auth';
-import { auth, signInWithGoogle, logoutFirebase, db } from '../services/firebase';
+import { auth, signInWithGoogle, signInWithGithub, logoutFirebase, db } from '../services/firebase';
 import { collection, doc, getDoc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { GERENTES_LIST } from '../components/AppSheetPatrimonioForm';
 import { canOperarNaSecretaria } from '../data/secretarias';
@@ -41,6 +41,7 @@ interface AuthContextType {
   isUnauthorized: boolean;
   unauthorizedEmail: string | null;
   loginGoogle: () => Promise<void>;
+  loginGithub: () => Promise<void>;
   logout: () => Promise<void>;
   loginDemo: () => void;
   simulateProfile: (secretariaIdOrName: string) => void;
@@ -364,6 +365,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginGithub = async () => {
+    try {
+      await signInWithGithub();
+    } catch (err) {
+      console.error('Falha no login GitHub:', err);
+      throw err;
+    }
+  };
+
   const logout = async () => {
     try {
       await logoutFirebase();
@@ -511,6 +521,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isUnauthorized,
       unauthorizedEmail,
       loginGoogle,
+      loginGithub,
       logout,
       loginDemo,
       simulateProfile,

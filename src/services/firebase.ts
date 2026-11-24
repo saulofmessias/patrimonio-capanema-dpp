@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, User as FirebaseUser } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signOut, User as FirebaseUser } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -14,6 +14,11 @@ export const auth = getAuth(app);
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+export const githubProvider = new GithubAuthProvider();
+// `user:email` e obrigatorio: a autorizacao do sistema e feita por e-mail.
+githubProvider.addScope('user:email');
+githubProvider.setCustomParameters({ allow_signup: 'true' });
 
 // Error handling conforming to the AI Studio Firestore specification
 export enum OperationType {
@@ -92,6 +97,22 @@ export async function signInWithGoogle(): Promise<FirebaseUser | null> {
     return result.user;
   } catch (err) {
     console.error('Erro ao autenticar com Google:', err);
+    throw err;
+  }
+}
+
+// GitHub Sign-In with Popup
+export async function signInWithGithub(): Promise<FirebaseUser | null> {
+  try {
+    const result = await signInWithPopup(auth, githubProvider);
+    // Sem e-mail nao ha como cruzar com a lista de autorizados: encerra a sessao.
+    if (!result.user.email) {
+      await signOut(auth);
+      throw new Error('github-no-email');
+    }
+    return result.user;
+  } catch (err) {
+    console.error('Erro ao autenticar com GitHub:', err);
     throw err;
   }
 }
