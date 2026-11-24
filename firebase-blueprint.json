@@ -1,0 +1,139 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Perfil de usuário do sistema patrimonial com permissões RBAC por Secretaria",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "description": "Email institucional do usuário" },
+        "nome": { "type": "string", "description": "Nome completo do servidor ou gestor" },
+        "role": { "type": "string", "enum": ["admin", "gerente", "vistoriador", "leitor"], "description": "Nível de acesso no DPP" },
+        "secretaria": { "type": "string", "description": "Secretaria de lotação ou Todas para admin geral" },
+        "departamento": { "type": "string", "description": "Departamento específico do usuário" },
+        "ativo": { "type": "boolean", "description": "Se a conta está ativa para acesso" },
+        "criadoEm": { "type": "string", "description": "Data ISO de criação do perfil" }
+      },
+      "required": ["email", "nome", "role", "secretaria", "ativo"]
+    },
+    "Patrimonio": {
+      "title": "Patrimonio",
+      "description": "Registro de bem permanente tombado do Município de Capanema",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador único AppSheet (ex: PMC-xxxx)" },
+        "numeroTombamento": { "type": "string", "description": "Número do tombo municipal (ex: #6664)" },
+        "descricao": { "type": "string", "description": "Descrição detalhada do bem permanente" },
+        "categoria": { "type": "string", "description": "Categoria do bem (ex: Veículos, Mobiliário)" },
+        "secretariaSetor": { "type": "string", "description": "Secretaria municipal responsável pela guarda" },
+        "departamento": { "type": "string", "description": "Setor interno da secretaria" },
+        "localizacaoExata": { "type": "string", "description": "Sala ou endereço físico do bem" },
+        "responsavel": { "type": "string", "description": "Gerente ou titular da carga patrimonial" },
+        "servidorDetentor": { "type": "string", "description": "Servidor com a posse direta do bem" },
+        "marcaModelo": { "type": "string", "description": "Marca e modelo do fabricante" },
+        "numeroSerie": { "type": "string", "description": "Número de série, chassi ou placa" },
+        "estadoConservacao": { "type": "string", "enum": ["Excelente", "Bom", "Regular", "Ruim / Danificado", "Inservível / Ocioso"], "description": "Condição física atual" },
+        "status": { "type": "string", "enum": ["Ativo / Em Uso", "Em Transferência", "Em Manutenção", "Baixado / Alienado", "Cedido"], "description": "Situação jurídica e operacional" },
+        "valorAquisicao": { "type": "number", "description": "Valor contábil ou histórico de aquisição em reais" },
+        "dataAquisicao": { "type": "string", "description": "Data de incorporação ou compra" },
+        "numeroNotaFiscal": { "type": "string", "description": "Nota fiscal ou número de empenho" },
+        "garantiaAte": { "type": "string", "description": "Término da garantia" },
+        "fotoBem": { "type": "string", "description": "URL ou base64 da foto do bem" },
+        "observacoes": { "type": "string", "description": "Histórico contábil ou notas de auditoria" },
+        "cadastradoPor": { "type": "string", "description": "Email do servidor que realizou o cadastro" },
+        "atualizadoEm": { "type": "string", "description": "Timestamp da última atualização" }
+      },
+      "required": ["numeroTombamento", "descricao", "categoria", "secretariaSetor", "responsavel", "estadoConservacao", "status", "valorAquisicao"]
+    },
+    "Transferencia": {
+      "title": "Transferencia",
+      "description": "Registro de guia de transferência e movimentação de bens",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID da movimentação" },
+        "patrimonioId": { "type": "string", "description": "ID do bem transferido" },
+        "patrimonioNumero": { "type": "string", "description": "Número do tombo do bem" },
+        "patrimonioDescricao": { "type": "string", "description": "Descrição do bem" },
+        "dataTransferencia": { "type": "string", "description": "Data da movimentação" },
+        "secretariaOrigem": { "type": "string", "description": "Secretaria de origem" },
+        "secretariaDestino": { "type": "string", "description": "Secretaria de destino" },
+        "responsavelOrigem": { "type": "string", "description": "Responsável anterior" },
+        "novoResponsavel": { "type": "string", "description": "Novo servidor com a carga" },
+        "motivo": { "type": "string", "description": "Justificativa da transferência" },
+        "autorizadoPor": { "type": "string", "description": "Autorizador da diretoria de patrimônio" },
+        "termoGerado": { "type": "boolean", "description": "Se o termo de responsabilidade foi emitido" }
+      },
+      "required": ["patrimonioId", "patrimonioNumero", "dataTransferencia", "secretariaOrigem", "secretariaDestino", "novoResponsavel"]
+    },
+    "Vistoria": {
+      "title": "Vistoria",
+      "description": "Registro de vistoria física e inventário in loco",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID do laudo de vistoria" },
+        "patrimonioId": { "type": "string", "description": "ID do bem vistoriado" },
+        "patrimonioNumero": { "type": "string", "description": "Número de tombo" },
+        "patrimonioDescricao": { "type": "string", "description": "Descrição do bem" },
+        "dataVistoria": { "type": "string", "description": "Data da inspeção presencial" },
+        "vistoriador": { "type": "string", "description": "Nome ou email do servidor vistoriador" },
+        "statusEncontrado": { "type": "string", "description": "Condição apurada no local" },
+        "parecer": { "type": "string", "description": "Parecer circunstanciado da comissão" },
+        "fotoVistoria": { "type": "string", "description": "Evidência fotográfica da plaqueta ou bem" }
+      },
+      "required": ["patrimonioId", "patrimonioNumero", "dataVistoria", "vistoriador", "statusEncontrado"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Log de auditoria e conformidade legal TCM-PA e Lei 4.320/64",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID do evento de auditoria" },
+        "timestamp": { "type": "string", "description": "Data e hora ISO do evento" },
+        "category": { "type": "string", "description": "Módulo afetado" },
+        "severity": { "type": "string", "description": "Nível de severidade" },
+        "title": { "type": "string", "description": "Título resumido do evento" },
+        "description": { "type": "string", "description": "Detalhes técnicos da alteração" },
+        "entityAffected": { "type": "string", "description": "Entidade alterada" },
+        "author": { "type": "string", "description": "Usuário autor da ação" }
+      },
+      "required": ["timestamp", "category", "title", "description", "author"]
+    },
+    "PatrimonioFoto": {
+      "title": "PatrimonioFoto",
+      "description": "Foto comprimida de bem patrimonial sincronizada em nuvem sob demanda para celulares e computadores",
+      "type": "object",
+      "properties": {
+        "fileName": { "type": "string", "maxLength": 240, "description": "Nome original normalizado do arquivo de imagem" },
+        "dataUrl": { "type": "string", "maxLength": 600000, "description": "Imagem JPEG comprimida em Data URL (base64)" },
+        "updatedAt": { "type": "string", "maxLength": 64, "description": "Timestamp ISO do envio para a nuvem" },
+        "uploadedBy": { "type": "string", "maxLength": 160, "description": "E-mail do servidor que enviou a foto" }
+      },
+      "required": ["fileName", "dataUrl", "updatedAt", "uploadedBy"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Perfis de usuários, gerentes de patrimônio e administradores do DPP"
+    },
+    "/patrimonios/{patrimonioId}": {
+      "schema": { "$ref": "#/entities/Patrimonio" },
+      "description": "Acervo oficial de bens patrimoniais permanentes da Prefeitura de Capanema"
+    },
+    "/patrimonio_fotos/{fotoId}": {
+      "schema": { "$ref": "#/entities/PatrimonioFoto" },
+      "description": "Repositório de fotos comprimidas dos bens patrimoniais carregadas sob demanda"
+    },
+    "/transferencias/{transferenciaId}": {
+      "schema": { "$ref": "#/entities/Transferencia" },
+      "description": "Registros de movimentação e guias de remessa interna entre secretarias"
+    },
+    "/vistorias/{vistoriaId}": {
+      "schema": { "$ref": "#/entities/Vistoria" },
+      "description": "Registros de conferência física, inventários periódicos e laudos do bem"
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Trilha de auditoria e conformidade legal TCM-PA e Lei 4.320/64"
+    }
+  }
+}

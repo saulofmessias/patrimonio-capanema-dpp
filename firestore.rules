@@ -1,0 +1,234 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------
+    // Regras padrao: nega tudo. Qualquer liberacao precisa ser explicita.
+    // ------------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==================================================================
+    // FUNCOES AUXILIARES
+    // ==================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isAuthenticated() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // E-mail normalizado do usuario autenticado (string vazia quando ausente).
+    function authEmail() {
+      return request.auth.token.email is string ? request.auth.token.email.lower() : '';
+    }
+
+    // Caminho do cadastro oficial de servidores autorizados.
+    function authPath() {
+      return /databases/$(database)/documents/authorized_users/$(authEmail());
+    }
+
+    // Administradores "de codigo" (Diretoria de Patrimônio Publico).
+    // Funcao pura: nao consulta o Firestore, para nao gerar recursao
+    // quando avaliada dentro das proprias regras de authorized_users.
+    // ATENCAO: manter em sincronia com SUPER_ADMIN_EMAILS (src/context/AuthContext.tsx).
+    function isSuperAdmin() {
+      return isVerified() && authEmail() in [
+        'saulofmessias@gmail.com',
+        'elielmarques40@gmail.com',
+        'elieldasilvamarques@gmail.com'
+      ];
+    }
+
+    // Contas institucionais cadastradas no codigo do app.
+    // Sao o "bootstrap" do RBAC: sem documento em authorized_users elas
+    // continuam operando, para nao travar a operacao da DPP.
+    // ATENCAO: manter em sincronia com BUILTIN_REAL_ACCOUNTS (src/context/AuthContext.tsx).
+    function builtinRole() {
+      return {
+        'saulofmessias@gmail.com': 'admin',
+        'elielmarques40@gmail.com': 'admin',
+        'elieldasilvamarques@gmail.com': 'admin',
+        'patrimoniopublicocapanema@gmail.com': 'gerente',
+        'emanueldamasceno656@gmail.com': 'gerente',
+        'lucianoafonsomilhomes22@gmail.com': 'gerente',
+        'antonyematheusdomine@gmail.com': 'gerente',
+        'nascimentoadalberto53@gmail.com': 'gerente',
+        'engpescadaniel@gmail.com': 'gerente'
+      }[authEmail()];
+    }
+
+    function builtinSecretaria() {
+      return {
+        'saulofmessias@gmail.com': 'Todas',
+        'elielmarques40@gmail.com': 'Todas',
+        'elieldasilvamarques@gmail.com': 'Todas',
+        'patrimoniopublicocapanema@gmail.com': 'SECRETARIA DE ADMINISTRAÇÃO',
+        'emanueldamasceno656@gmail.com': 'SECRETARIA DE EDUCAÇÃO',
+        'lucianoafonsomilhomes22@gmail.com': 'SECRETARIA DE EDUCAÇÃO',
+        'antonyematheusdomine@gmail.com': 'SECRETARIA DE EDUCAÇÃO',
+        'nascimentoadalberto53@gmail.com': 'SECRETARIA DE SAÚDE',
+        'engpescadaniel@gmail.com': 'SECRETARIA DE SAÚDE'
+      }[authEmail()];
+    }
+
+    // Conta desativada pelo administrador -> perde todos os poderes.
+    function isRevoked() {
+      return exists(authPath()) && get(authPath()).data.ativo == false;
+    }
+
+    // PAPEL EFETIVO do servidor.
+    // Fonte de verdade = authorized_users (mantido APENAS pelo administrador).
+    // O documento /users/{uid} e um espelho e NAO e consultado aqui: como o
+    // proprio servidor escreve nele, ele nao pode ser usado como base de
+    // decisao de permissao (seria um caminho trivial de auto-promoção).
+    function effectiveRole() {
+      if (isRevoked()) { return null; }
+      if (exists(authPath())) { return get(authPath()).data.role; }
+      return builtinRole();
+    }
+
+    function isAdmin() {
+      return isVerified() && effectiveRole() == 'admin';
+    }
+
+    function isGerente() {
+      return isVerified() && effectiveRole() in ['admin', 'gerente'];
+    }
+
+    // Qualquer servidor oficialmente autorizado (admin, gerente, vistoriador, leitor).
+    function isAutorizado() {
+      return isVerified() && effectiveRole() != null;
+    }
+
+    // Secretaria de lotacao do servidor (autorizada ou institutional).
+    function secretariaServidor() {
+      if (exists(authPath())) { return get(authPath()).data.secretaria; }
+      return builtinSecretaria();
+    }
+
+    // Reconhece as duas grafias historicas da Secretaria de Assistencia Social.
+    function secretariasEquivalentes(a, b) {
+      return a == b
+        || (a == 'SECRETARIA DE ASSITENCIA SOCIAL' && b == 'SECRETARIA DE ASSISTÊNCIA SOCIAL')
+        || (a == 'SECRETARIA DE ASSISTÊNCIA SOCIAL' && b == 'SECRETARIA DE ASSITENCIA SOCIAL');
+    }
+
+    // Gerente so mexe nos bens da propria secretaria (admin mexe em todas).
+    function podeOperarNaSecretaria(alvo) {
+      return isGerente() && (
+        secretariaServidor() == 'Todas'
+        || secretariasEquivalentes(secretariaServidor(), alvo)
+      );
+    }
+
+    function isValidPatrimonioFoto(data) {
+      return data.keys().hasAll(['fileName', 'dataUrl', 'updatedAt', 'uploadedBy']) &&
+        data.keys().hasOnly(['fileName', 'dataUrl', 'updatedAt', 'uploadedBy']) &&
+        data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 240 &&
+        data.dataUrl is string && data.dataUrl.size() >= 64 && data.dataUrl.size() <= 600000 &&
+        (data.dataUrl[0:23] == 'data:image/jpeg;base64,' ||
+         data.dataUrl[0:22] == 'data:image/jpg;base64,' ||
+         data.dataUrl[0:22] == 'data:image/png;base64,' ||
+         data.dataUrl[0:23] == 'data:image/webp;base64,') &&
+        data.updatedAt is string && data.updatedAt.size() >= 8 && data.updatedAt.size() <= 64 &&
+        data.uploadedBy is string && data.uploadedBy.size() >= 3 && data.uploadedBy.size() <= 160;
+    }
+
+    // ==================================================================
+    // USUARIOS E PERFIS
+    // ==================================================================
+    // /users/{uid} e apenas um espelho de perfil do servidor.
+    // O proprio dono pode manter apenas os campos NAO privilegiados.
+    // `role`, `secretaria` e `ativo` vem do cadastro oficial
+    // (authorized_users) e so o administrador pode alterar.
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin()
+        || (isOwner(userId) && request.resource.data.keys().hasOnly(
+             ['email', 'nome', 'departamento', 'fotoUrl', 'atualizadoEm']));
+      allow update: if isAdmin()
+        || (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+             ['email', 'nome', 'departamento', 'fotoUrl', 'atualizadoEm']));
+      allow delete: if isAdmin();
+    }
+
+    // ==================================================================
+    // SERVIDORES AUTORIZADOS DA PREFEITURA
+    // ==================================================================
+    match /authorized_users/{emailKey} {
+      allow get: if isAuthenticated() && (authEmail() == emailKey.lower() || isSuperAdmin());
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ==================================================================
+    // BENS PATRIMONIAIS
+    // ==================================================================
+    match /patrimonios/{patrimonioId} {
+      allow read: if isAutorizado();
+      allow create: if isGerente() && podeOperarNaSecretaria(request.resource.data.secretariaSetor);
+      // Nao permite remanejar o bem para outra secretaria, nem editar bens de terceiros.
+      allow update: if isGerente()
+        && podeOperarNaSecretaria(resource.data.secretariaSetor)
+        && request.resource.data.secretariaSetor == resource.data.secretariaSetor;
+      allow delete: if isAdmin();
+    }
+
+    // ==================================================================
+    // REPOSITORIO DE FOTOS COMPRIMIDAS DOS BENS
+    // ==================================================================
+    match /patrimonio_fotos/{fotoId} {
+      allow get: if isAutorizado() && isValidId(fotoId);
+      allow list: if isAdmin();
+      allow create, update: if isGerente() && isValidId(fotoId) && isValidPatrimonioFoto(request.resource.data);
+      allow delete: if isAdmin() && isValidId(fotoId);
+    }
+
+    // ==================================================================
+    // TRANSFERENCIAS E GUIAS DE REMESSA
+    // ==================================================================
+    match /transferencias/{transferenciaId} {
+      allow read: if isAutorizado();
+      allow create: if isGerente() && (
+        podeOperarNaSecretaria(request.resource.data.secretariaDestino)
+        || podeOperarNaSecretaria(request.resource.data.secretariaOrigem)
+      );
+      allow update: if isGerente() && (
+        podeOperarNaSecretaria(resource.data.secretariaDestino)
+        || podeOperarNaSecretaria(resource.data.secretariaOrigem)
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ==================================================================
+    // VISTORIAS E LAUDOS
+    // ==================================================================
+    match /vistorias/{vistoriaId} {
+      allow read: if isAutorizado();
+      allow create, update: if isAutorizado();
+      allow delete: if isAdmin();
+    }
+
+    // ==================================================================
+    // AUDITORIA E LOGS (imutaveis)
+    // ==================================================================
+    match /auditLogs/{logId} {
+      allow read: if isAutorizado();
+      allow create: if isAutorizado();
+      allow update, delete: if false; // Imutabilidade de auditoria
+    }
+  }
+}

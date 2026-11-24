@@ -1,0 +1,6 @@
+{
+  "name": "Migração AppSheet - Sistema Web Moderno",
+  "description": "Plataforma e hub de migração completa de aplicações AppSheet para aplicação web moderna em React, TypeScript e Tailwind CSS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
