@@ -153,7 +153,7 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
       setCustoCompra(initialData.valorAquisicao || 0);
       setDataCompra(initialData.dataAquisicao || '');
       setCriadoEm(resolveInitialCriadoEm(initialData));
-      setCriadoPor(initialData.cadastradoPor || 'saulofmessias@gmail.com');
+      setCriadoPor(initialData.cadastradoPor || 'dpp@capanema.pa.gov.br');
       setEtiquetaNumero(initialData.etiquetaNumero || initialData.numeroTombamento || '');
       setNumeroSerie(initialData.numeroSerie || '');
       setMarcaModelo(initialData.marcaModelo || '');
@@ -175,7 +175,7 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
       setCustoCompra(0);
       setDataCompra('');
       setCriadoEm(formatBrDateOnly(new Date()));
-      setCriadoPor('saulofmessias@gmail.com');
+      setCriadoPor('dpp@capanema.pa.gov.br');
       setEtiquetaNumero((totalExistingRecords + 1).toString());
       setNumeroSerie('');
       setMarcaModelo('');
@@ -246,7 +246,7 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
 
   // 13. Criado_Por
   const [criadoPor, setCriadoPor] = useState<string>(
-    initialData?.cadastradoPor || 'saulofmessias@gmail.com'
+    initialData?.cadastradoPor || 'dpp@capanema.pa.gov.br'
   );
 
   // Campos Adicionais de Auditoria & TCM-PA (Opcionais)

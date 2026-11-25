@@ -43,14 +43,14 @@ export const AppSheetAuditReport: React.FC<Props> = ({ onNavigateToTab }) => {
   ];
 
   const usuariosReais = [
-    { email: 'saulofmessias@gmail.com', nome: 'Saulo Messias', perfil: 'ADMIN', secretaria: 'ID 6 - SECRETARIA DE SAÚDE', cadastros: 1774, status: 'Ativo' },
-    { email: 'engpescadaniel@gmail.com', nome: 'Daniel', perfil: 'USUARIO', secretaria: 'ID 6 - SECRETARIA DE SAÚDE', cadastros: 1294, status: 'Ativo' },
-    { email: 'emanueldamasceno656@gmail.com', nome: 'Emano', perfil: 'USUARIO', secretaria: 'ID 5 - SECRETARIA DE EDUCAÇÃO', cadastros: 1019, status: 'Ativo' },
-    { email: 'antonyematheusdomine@gmail.com', nome: 'Luciano1', perfil: 'USUARIO', secretaria: 'ID 5 - SECRETARIA DE EDUCAÇÃO', cadastros: 617, status: 'Ativo' },
-    { email: 'lucianoafonsomilhomes22@gmail.com', nome: 'Luciano', perfil: 'USUARIO', secretaria: 'ID 5 - SECRETARIA DE EDUCAÇÃO', cadastros: 247, status: 'Ativo' },
-    { email: 'elielmarques40@gmail.com', nome: 'Eliel da Silva Marques (Diretor DPP)', perfil: 'ADMIN', secretaria: 'DIRETORIA DE PATRIMÔNIO (DPP)', cadastros: 0, status: 'Ativo' },
-    { email: 'nascimentoadalberto53@gmail.com', nome: 'Dada', perfil: 'USUARIO', secretaria: 'ID 6 - SECRETARIA DE SAÚDE', cadastros: 24, status: 'Ativo' },
-    { email: 'patrimoniopublicocapanema@gmail.com', nome: 'Danilo', perfil: 'FUNCIONARIO', secretaria: 'ID 2 - SECRETARIA DE ADMINISTRAÇÃO', cadastros: 10, status: 'Ativo' }
+    { email: 'admin.dpp@capanema.pa.gov.br', nome: 'Administrador DPP', perfil: 'ADMIN', secretaria: 'ID 6 - SECRETARIA DE SAÚDE', cadastros: 1774, status: 'Ativo' },
+    { email: 'fiscal.saude1@capanema.pa.gov.br', nome: 'Fiscal Setorial (Saúde 1)', perfil: 'USUARIO', secretaria: 'ID 6 - SECRETARIA DE SAÚDE', cadastros: 1294, status: 'Ativo' },
+    { email: 'fiscal.educacao1@capanema.pa.gov.br', nome: 'Fiscal Setorial (Educação 1)', perfil: 'USUARIO', secretaria: 'ID 5 - SECRETARIA DE EDUCAÇÃO', cadastros: 1019, status: 'Ativo' },
+    { email: 'fiscal.educacao2@capanema.pa.gov.br', nome: 'Fiscal Setorial (Educação 2)', perfil: 'USUARIO', secretaria: 'ID 5 - SECRETARIA DE EDUCAÇÃO', cadastros: 617, status: 'Ativo' },
+    { email: 'fiscal.educacao3@capanema.pa.gov.br', nome: 'Fiscal Setorial (Educação 3)', perfil: 'USUARIO', secretaria: 'ID 5 - SECRETARIA DE EDUCAÇÃO', cadastros: 247, status: 'Ativo' },
+    { email: 'diretoria.dpp@capanema.pa.gov.br', nome: 'Diretoria de Patrimônio (DPP)', perfil: 'ADMIN', secretaria: 'DIRETORIA DE PATRIMÔNIO (DPP)', cadastros: 0, status: 'Ativo' },
+    { email: 'fiscal.saude2@capanema.pa.gov.br', nome: 'Fiscal Setorial (Saúde 2)', perfil: 'USUARIO', secretaria: 'ID 6 - SECRETARIA DE SAÚDE', cadastros: 24, status: 'Ativo' },
+    { email: 'operador.admin@capanema.pa.gov.br', nome: 'Operador DPP (Administração)', perfil: 'FUNCIONARIO', secretaria: 'ID 2 - SECRETARIA DE ADMINISTRAÇÃO', cadastros: 10, status: 'Ativo' }
   ];
 
   const colunasPatrimonio = [

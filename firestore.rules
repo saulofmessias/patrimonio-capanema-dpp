@@ -22,7 +22,7 @@ service cloud.firestore {
       // No GitHub OAuth (provider alternativo), o token do Firebase pode vir sem
       // email_verified == true mesmo com e-mail verificado no GitHub; o acesso
       // continua restrito exclusivamente aos e-mails previamente autorizados em
-      // authorized_users / bootstrap.
+      // authorized_users no Firestore.
       return isAuthenticated() && (
         request.auth.token.get('email_verified', false) == true
         || request.auth.token.get('firebase', {}).get('sign_in_provider', '') == 'github.com'
@@ -42,53 +42,9 @@ service cloud.firestore {
       return request.auth.token.email is string ? request.auth.token.email.lower() : '';
     }
 
-    // Caminho do cadastro oficial de servidores autorizados.
+    // Caminho do cadastro oficial de servidores autorizados (fonte unica de verdade).
     function authPath() {
       return /databases/$(database)/documents/authorized_users/$(authEmail());
-    }
-
-    // Administradores "de codigo" (Diretoria de Patrimônio Publico).
-    // Funcao pura: nao consulta o Firestore (economiza leituras de regra).
-    // ATENCAO: manter em sincronia com SUPER_ADMIN_EMAILS (src/context/AuthContext.tsx).
-    function isSuperAdmin() {
-      return isVerified() && authEmail() in [
-        'saulofmessias@gmail.com',
-        'elielmarques40@gmail.com',
-        'elieldasilvamarques@gmail.com'
-      ];
-    }
-
-    // Contas institucionais cadastradas no codigo do app.
-    // Sao o "bootstrap" do RBAC: sem documento em authorized_users elas
-    // continuam operando, para nao travar a operacao da DPP.
-    // Usa .get(chave, default) para evitar KeyError quando o e-mail nao esta no mapa.
-    // ATENCAO: manter em sincronia com BUILTIN_REAL_ACCOUNTS (src/context/AuthContext.tsx).
-    function builtinRole() {
-      return {
-        'saulofmessias@gmail.com': 'admin',
-        'elielmarques40@gmail.com': 'admin',
-        'elieldasilvamarques@gmail.com': 'admin',
-        'patrimoniopublicocapanema@gmail.com': 'gerente',
-        'emanueldamasceno656@gmail.com': 'gerente',
-        'lucianoafonsomilhomes22@gmail.com': 'gerente',
-        'antonyematheusdomine@gmail.com': 'gerente',
-        'nascimentoadalberto53@gmail.com': 'gerente',
-        'engpescadaniel@gmail.com': 'gerente'
-      }.get(authEmail(), null);
-    }
-
-    function builtinSecretaria() {
-      return {
-        'saulofmessias@gmail.com': 'Todas',
-        'elielmarques40@gmail.com': 'Todas',
-        'elieldasilvamarques@gmail.com': 'Todas',
-        'patrimoniopublicocapanema@gmail.com': 'SECRETARIA DE ADMINISTRAÇÃO',
-        'emanueldamasceno656@gmail.com': 'SECRETARIA DE EDUCAÇÃO',
-        'lucianoafonsomilhomes22@gmail.com': 'SECRETARIA DE EDUCAÇÃO',
-        'antonyematheusdomine@gmail.com': 'SECRETARIA DE EDUCAÇÃO',
-        'nascimentoadalberto53@gmail.com': 'SECRETARIA DE SAÚDE',
-        'engpescadaniel@gmail.com': 'SECRETARIA DE SAÚDE'
-      }.get(authEmail(), '');
     }
 
     // Conta desativada pelo administrador -> perde todos os poderes.
@@ -97,22 +53,22 @@ service cloud.firestore {
     }
 
     // PAPEL EFETIVO do servidor.
-    // Fonte de verdade = authorized_users (mantido APENAS pelo administrador).
+    // Fonte unica de verdade = authorized_users (mantido APENAS pelo administrador).
     // O documento /users/{uid} e um espelho e NAO e consultado aqui: como o
     // proprio servidor escreve nele, ele nao pode ser usado como base de
     // decisao de permissao (seria um caminho trivial de auto-promocao).
     function effectiveRole() {
       return isRevoked()
         ? null
-        : (exists(authPath()) ? get(authPath()).data.get('role', null) : builtinRole());
+        : (exists(authPath()) ? get(authPath()).data.get('role', null) : null);
     }
 
     function isAdmin() {
-      return isSuperAdmin() || (isVerified() && effectiveRole() == 'admin');
+      return isVerified() && effectiveRole() == 'admin';
     }
 
     function isGerente() {
-      return isSuperAdmin() || (isVerified() && effectiveRole() in ['admin', 'gerente']);
+      return isVerified() && effectiveRole() in ['admin', 'gerente'];
     }
 
     function isVistoriador() {
@@ -121,19 +77,19 @@ service cloud.firestore {
 
     // Perfis operacionais com permissao de registrar vistorias e auditoria (exclui 'leitor').
     function podeRegistrarVistoria() {
-      return isSuperAdmin() || (isVerified() && effectiveRole() in ['admin', 'gerente', 'vistoriador']);
+      return isVerified() && effectiveRole() in ['admin', 'gerente', 'vistoriador'];
     }
 
     // Qualquer servidor oficialmente autorizado (admin, gerente, vistoriador, leitor).
     function isAutorizado() {
-      return isSuperAdmin() || (isVerified() && effectiveRole() != null);
+      return isVerified() && effectiveRole() != null;
     }
 
-    // Secretaria de lotacao do servidor (autorizada ou institucional).
+    // Secretaria de lotacao do servidor (cadastrada em authorized_users).
     function secretariaServidor() {
       return exists(authPath())
         ? get(authPath()).data.get('secretaria', '')
-        : builtinSecretaria();
+        : '';
     }
 
     // Reconhece as duas grafias historicas da Secretaria de Assistencia Social.

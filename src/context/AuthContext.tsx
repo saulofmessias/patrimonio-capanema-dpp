@@ -30,7 +30,7 @@ export interface AuthorizedUserRecord {
   criadoPor?: string;
   criadoEm?: string;
   atualizadoEm?: string;
-  source: 'firestore' | 'builtin';
+  source: 'firestore';
 }
 
 interface AuthContextType {
@@ -62,113 +62,20 @@ interface AuthContextType {
     departamento?: string
   ) => Promise<void>;
   removeAuthorizedUser: (email: string) => Promise<void>;
-  migrateBuiltinUsersToFirestore: () => Promise<{ migrated: number; alreadyInCloud: number }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const SUPER_ADMIN_EMAILS = new Set([
-  'saulofmessias@gmail.com',
-  'elielmarques40@gmail.com',
-  'elieldasilvamarques@gmail.com',
-]);
-
-// Contas reais pré-cadastradas do Município de Capanema
-export const BUILTIN_REAL_ACCOUNTS: UserProfile[] = [
-  // 1. Administradores Gerais da DPP
-  {
-    uid: 'admin-saulo',
-    email: 'saulofmessias@gmail.com',
-    nome: 'Saulo Messias',
-    role: 'admin',
-    secretaria: 'Todas',
-    departamento: 'Diretoria de Patrimônio Público (DPP)'
-  },
-  {
-    uid: 'admin-eliel',
-    email: 'elielmarques40@gmail.com',
-    nome: 'Eliel Marques',
-    role: 'admin',
-    secretaria: 'Todas',
-    departamento: 'Diretoria de Patrimônio Público (DPP)'
-  },
-  {
-    uid: 'admin-eliel-alt',
-    email: 'elieldasilvamarques@gmail.com',
-    nome: 'Eliel da Silva Marques',
-    role: 'admin',
-    secretaria: 'Todas',
-    departamento: 'Diretoria de Patrimônio Público (DPP)'
-  },
-
-  // 2. Funcionários e Operadores da DPP
-  {
-    uid: 'func-danilo',
-    email: 'patrimoniopublicocapanema@gmail.com',
-    nome: 'Danilo',
-    role: 'gerente',
-    secretaria: 'SECRETARIA DE ADMINISTRAÇÃO',
-    departamento: 'Diretoria de Patrimônio Público (DPP)'
-  },
-
-  // 3. Usuários / Fiscais Setoriais (Secretaria de Educação - Sec 5)
-  {
-    uid: 'user-emano',
-    email: 'emanueldamasceno656@gmail.com',
-    nome: 'Emano',
-    role: 'gerente',
-    secretaria: 'SECRETARIA DE EDUCAÇÃO',
-    departamento: 'Setor de Patrimônio - Educação'
-  },
-  {
-    uid: 'user-luciano',
-    email: 'lucianoafonsomilhomes22@gmail.com',
-    nome: 'Luciano',
-    role: 'gerente',
-    secretaria: 'SECRETARIA DE EDUCAÇÃO',
-    departamento: 'Setor de Patrimônio - Educação'
-  },
-  {
-    uid: 'user-luciano1',
-    email: 'antonyematheusdomine@gmail.com',
-    nome: 'Luciano1',
-    role: 'gerente',
-    secretaria: 'SECRETARIA DE EDUCAÇÃO',
-    departamento: 'Setor de Patrimônio - Educação'
-  },
-
-  // 4. Usuários / Fiscais Setoriais (Secretaria de Saúde - Sec 6)
-  {
-    uid: 'user-dada',
-    email: 'nascimentoadalberto53@gmail.com',
-    nome: 'Dada',
-    role: 'gerente',
-    secretaria: 'SECRETARIA DE SAÚDE',
-    departamento: 'Setor de Patrimônio - Saúde'
-  },
-  {
-    uid: 'user-daniel',
-    email: 'engpescadaniel@gmail.com',
-    nome: 'Daniel',
-    role: 'gerente',
-    secretaria: 'SECRETARIA DE SAÚDE',
-    departamento: 'Setor de Patrimônio - Saúde'
-  },
-];
-
-// Lista completa usada para Auditoria RBAC (inclui perfis simulados das 15 Secretarias)
-export const SYSTEM_ACCOUNTS: UserProfile[] = [
-  ...BUILTIN_REAL_ACCOUNTS,
-  ...GERENTES_LIST.map((g) => ({
-    uid: `gerente-${g.id}`,
-    email: `gerente.${g.secretaria.toLowerCase().replace(/[^a-z]/g, '')}@capanema.pa.gov.br`,
-    nome: g.nome,
-    role: 'gerente' as UserRole,
-    secretaria: g.secretaria,
-    departamento: 'Comissão Setorial de Patrimônio',
-    isPlaceholderEmail: true
-  }))
-];
+// Perfis institucionais simulados (sem e-mails pessoais no bundle) usados apenas para auditoria RBAC pelo Admin
+export const SYSTEM_ACCOUNTS: UserProfile[] = GERENTES_LIST.map((g) => ({
+  uid: `gerente-${g.id}`,
+  email: `gerente.${g.secretaria.toLowerCase().replace(/[^a-z]/g, '')}@capanema.pa.gov.br`,
+  nome: g.nome,
+  role: 'gerente' as UserRole,
+  secretaria: g.secretaria,
+  departamento: 'Comissão Setorial de Patrimônio',
+  isPlaceholderEmail: true
+}));
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
@@ -184,18 +91,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoadingUsers(true);
     try {
       const snap = await getDocs(collection(db, 'authorized_users'));
-      const firestoreMap = new Map<string, AuthorizedUserRecord>();
+      const activeUsers: AuthorizedUserRecord[] = [];
       snap.forEach((d) => {
         const data = d.data() || {};
         const emailLower = (data.email || d.id || '').toLowerCase().trim();
-        if (!emailLower) return;
-        firestoreMap.set(emailLower, {
+        if (!emailLower || data.ativo === false) return;
+        activeUsers.push({
           email: emailLower,
           nome: data.nome || 'Servidor Autorizado',
           role: (data.role as UserRole) || 'gerente',
           secretaria: data.secretaria || 'Todas',
           departamento: data.departamento || 'Setor de Patrimônio',
-          ativo: data.ativo !== false,
+          ativo: true,
           criadoPor: data.criadoPor,
           criadoEm: data.criadoEm,
           atualizadoEm: data.atualizadoEm,
@@ -203,70 +110,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       });
 
-      const merged: AuthorizedUserRecord[] = Array.from(firestoreMap.values()).filter(
-        (u) => u.ativo !== false
-      );
-      for (const builtIn of BUILTIN_REAL_ACCOUNTS) {
-        const emailLower = builtIn.email.toLowerCase().trim();
-        if (!firestoreMap.has(emailLower)) {
-          merged.push({
-            email: emailLower,
-            nome: builtIn.nome,
-            role: builtIn.role,
-            secretaria: builtIn.secretaria,
-            departamento: builtIn.departamento,
-            ativo: true,
-            source: 'builtin',
-          });
-        }
-      }
-
-      merged.sort((a, b) => {
+      activeUsers.sort((a, b) => {
         if (a.role === 'admin' && b.role !== 'admin') return -1;
         if (a.role !== 'admin' && b.role === 'admin') return 1;
         return a.nome.localeCompare(b.nome, 'pt-BR');
       });
 
-      setAuthorizedUsers(merged);
+      setAuthorizedUsers(activeUsers);
     } catch (err) {
       console.warn('Erro ao carregar lista de usuários autorizados:', err);
-      // Fallback apenas com contas fixas em memória
-      setAuthorizedUsers(
-        BUILTIN_REAL_ACCOUNTS.map((b) => ({
-          email: b.email.toLowerCase(),
-          nome: b.nome,
-          role: b.role,
-          secretaria: b.secretaria,
-          departamento: b.departamento,
-          ativo: true,
-          source: 'builtin',
-        }))
-      );
     } finally {
       setIsLoadingUsers(false);
     }
   }, []);
 
-  // Monitorar estado de autenticação real do Firebase Auth
+  // Monitorar estado de autenticação real do Firebase Auth (fonte unica: /authorized_users no Firestore)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (user && user.email) {
         const emailLower = user.email.toLowerCase().trim();
-
-        const isSuperAdmin = SUPER_ADMIN_EMAILS.has(emailLower);
-        const preMapped = BUILTIN_REAL_ACCOUNTS.find(
-          (a) => a.email.toLowerCase().trim() === emailLower
-        );
-
         let resolvedProfile: UserProfile | null = null;
 
-        // 1. Verificar primeiro no Firestore (authorized_users/{email}) para refletir edições ou novos cadastros em tempo real
         try {
           const userDoc = await getDoc(doc(db, 'authorized_users', emailLower));
           if (userDoc.exists()) {
             const data = userDoc.data();
-            if (data.ativo === false && !isSuperAdmin) {
+            if (data.ativo === false) {
               setIsUnauthorized(true);
               setUnauthorizedEmail(user.email);
               setProfile(null);
@@ -274,13 +144,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setIsLoading(false);
               return;
             }
+            const role = (data.role as UserRole) || 'gerente';
             resolvedProfile = {
               uid: user.uid,
               email: user.email,
-              nome: data.nome || user.displayName || preMapped?.nome || 'Servidor Autorizado',
-              role: isSuperAdmin ? 'admin' : ((data.role as UserRole) || 'gerente'),
-              secretaria: isSuperAdmin ? 'Todas' : (data.secretaria || 'Todas'),
-              departamento: data.departamento || preMapped?.departamento || 'Setor de Patrimônio',
+              nome: data.nome || user.displayName || 'Servidor Autorizado',
+              role,
+              secretaria: role === 'admin' ? 'Todas' : (data.secretaria || 'Todas'),
+              departamento: data.departamento || 'Setor de Patrimônio',
               fotoUrl: user.photoURL || undefined,
               isSimulated: false
             };
@@ -289,35 +160,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.warn('Erro ao verificar authorized_users:', e);
         }
 
-        // 2. Fallback para contas institucionais pré-cadastradas no código (apenas e-mails reais)
-        if (!resolvedProfile && (isSuperAdmin || preMapped)) {
-          resolvedProfile = {
-            uid: user.uid,
-            email: user.email,
-            nome: preMapped?.nome || (isSuperAdmin ? 'Administrador Geral DPP' : (user.displayName || 'Servidor Autorizado')),
-            role: isSuperAdmin ? 'admin' : (preMapped?.role || 'gerente'),
-            secretaria: isSuperAdmin ? 'Todas' : (preMapped?.secretaria || 'Todas'),
-            departamento: isSuperAdmin ? 'Diretoria de Patrimônio Público (DPP)' : (preMapped?.departamento || 'Setor de Patrimônio'),
-            fotoUrl: user.photoURL || undefined,
-            isSimulated: false
-          };
-        }
-
         if (resolvedProfile) {
           // Espelho de perfil em /users/{uid}.
           // IMPORTANTE: aqui vao SO campos nao privilegiados. O papel (role), a
           // secretaria e a situacao (ativo) sao definidos pelo administrador em
           // authorized_users e lidos de la pelas regras do Firestore. Gravar
           // `role` aqui permitiria que o proprio servidor se auto-promovesse.
-          const perfilMirror: Record<string, unknown> = {
+          const userPayload: Record<string, unknown> = {
             email: emailLower,
             nome: resolvedProfile.nome,
             departamento: resolvedProfile.departamento || 'Setor de Patrimônio',
-            atualizadoEm: new Date().toISOString(),
+            atualizadoEm: new Date().toISOString()
           };
-          if (resolvedProfile.fotoUrl) perfilMirror.fotoUrl = resolvedProfile.fotoUrl;
-          setDoc(doc(db, 'users', user.uid), perfilMirror, { merge: true })
-            .catch(err => console.warn('Aviso ao sincronizar perfil em /users:', err));
+          if (resolvedProfile.fotoUrl) {
+            userPayload.fotoUrl = resolvedProfile.fotoUrl;
+          }
+          setDoc(doc(db, 'users', user.uid), userPayload, { merge: true }).catch(e => {
+            console.warn('Aviso ao sincronizar perfil em /users:', e);
+          });
 
           setIsUnauthorized(false);
           setUnauthorizedEmail(null);
@@ -330,7 +190,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // 3. Se não bateu com nenhuma lista autorizada, BLOQUEIA o acesso
+        // Se não existe em authorized_users (ou está inativo), BLOQUEIA o acesso
         setIsUnauthorized(true);
         setUnauthorizedEmail(user.email);
         setProfile(null);
@@ -453,89 +313,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Remover ou revogar autorização de um servidor (tanto contas da Nuvem quanto da Base DPP)
+  // Remover autorização de um servidor (protege contra auto-exclusão e exclusão do último admin)
   const removeAuthorizedUser = async (email: string) => {
     const emailLower = email.toLowerCase().trim();
-    if (SUPER_ADMIN_EMAILS.has(emailLower)) {
-      throw new Error('Não é possível excluir um Administrador Geral padrão da DPP.');
+    const currentEmail = (realProfile?.email || profile?.email || '').toLowerCase().trim();
+
+    if (emailLower === currentEmail) {
+      throw new Error('Não é possível excluir sua própria conta de administrador enquanto estiver logado.');
     }
-    const builtInMatch = BUILTIN_REAL_ACCOUNTS.find(
-      (b) => b.email.toLowerCase().trim() === emailLower
-    );
+
+    const activeAdmins = authorizedUsers.filter((u) => u.role === 'admin' && u.ativo !== false);
+    const isTargetAdmin = activeAdmins.some((u) => u.email.toLowerCase().trim() === emailLower);
+    if (isTargetAdmin && activeAdmins.length <= 1) {
+      throw new Error('Não é possível excluir o último Administrador Geral ativo da DPP.');
+    }
+
     try {
-      if (builtInMatch) {
-        const nowIso = new Date().toISOString();
-        await setDoc(
-          doc(db, 'authorized_users', emailLower),
-          {
-            email: emailLower,
-            nome: builtInMatch.nome,
-            role: builtInMatch.role,
-            secretaria: builtInMatch.secretaria,
-            departamento: builtInMatch.departamento || 'Setor de Patrimônio',
-            ativo: false,
-            removidoPor: realProfile?.email || profile?.email || 'dpp@capanema.pa.gov.br',
-            atualizadoEm: nowIso,
-          },
-          { merge: true }
-        );
-      } else {
-        await deleteDoc(doc(db, 'authorized_users', emailLower));
-      }
+      await deleteDoc(doc(db, 'authorized_users', emailLower));
       await refreshAuthorizedUsers();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `authorized_users/${emailLower}`);
       throw err;
     }
-  };
-
-  // Migra contas fixas (bootstrap) que ainda nao possuem documento proprio em /authorized_users.
-  // Nao sobrescreve contas ja existentes (inclusive contas revogadas com ativo: false).
-  const migrateBuiltinUsersToFirestore = async (): Promise<{ migrated: number; alreadyInCloud: number }> => {
-    const snap = await getDocs(collection(db, 'authorized_users'));
-    const existingEmails = new Set<string>();
-    snap.forEach((d) => {
-      const data = d.data() || {};
-      const key = (data.email || d.id || '').toLowerCase().trim();
-      if (key) existingEmails.add(key);
-    });
-
-    const nowIso = new Date().toISOString();
-    const actorEmail = realProfile?.email || profile?.email || 'dpp@capanema.pa.gov.br';
-    let migrated = 0;
-    let alreadyInCloud = 0;
-
-    for (const acc of BUILTIN_REAL_ACCOUNTS) {
-      const emailLower = acc.email.toLowerCase().trim();
-      if (existingEmails.has(emailLower)) {
-        alreadyInCloud += 1;
-        continue;
-      }
-      try {
-        await setDoc(
-          doc(db, 'authorized_users', emailLower),
-          {
-            email: emailLower,
-            nome: acc.nome,
-            role: acc.role,
-            secretaria: acc.role === 'admin' ? 'Todas' : acc.secretaria,
-            departamento: acc.departamento || 'Setor de Patrimônio',
-            ativo: true,
-            criadoPor: actorEmail,
-            criadoEm: nowIso,
-            atualizadoEm: nowIso,
-          },
-          { merge: true }
-        );
-        migrated += 1;
-      } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, `authorized_users/${emailLower}`);
-        throw err;
-      }
-    }
-
-    await refreshAuthorizedUsers();
-    return { migrated, alreadyInCloud };
   };
 
   // Verificar se o usuário pode editar/transferir patrimônio desta secretaria
@@ -575,8 +374,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoadingUsers,
       refreshAuthorizedUsers,
       addAuthorizedUser,
-      removeAuthorizedUser,
-      migrateBuiltinUsersToFirestore
+      removeAuthorizedUser
     }}>
       {children}
     </AuthContext.Provider>

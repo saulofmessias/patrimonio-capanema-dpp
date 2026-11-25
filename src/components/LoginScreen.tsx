@@ -161,7 +161,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ scannedBem, scannedCod
                   </p>
                   <p className="text-[10.5px] text-rose-700 mt-1.5">
                     Para solicitar liberação, entre em contato com a <strong>Diretoria de Patrimônio Público (DPP)</strong> pelo e-mail: <br />
-                    <span className="font-mono font-bold text-rose-950">saulofmessias@gmail.com</span>
+                    <span className="font-mono font-bold text-rose-950">dpp@capanema.pa.gov.br</span>
                   </p>
                 </div>
               </div>

@@ -415,7 +415,7 @@ export const INITIAL_PATRIMONIOS: PatrimonioRecord[] = [
     dataAquisicao: '2026-01-15',
     numeroNotaFiscal: 'NF-e 004912',
     observacoes: 'Caminhão compactador de resíduos sólidos. Etiqueta PDF gerada.',
-    cadastradoPor: 'saulofmessias@gmail.com',
+    cadastradoPor: 'dpp@capanema.pa.gov.br',
     atualizadoEm: '2026-11-06 03:00:00'
   },
   {
@@ -432,7 +432,7 @@ export const INITIAL_PATRIMONIOS: PatrimonioRecord[] = [
     valorAquisicao: 500.00,
     dataAquisicao: '2025-09-08',
     numeroNotaFiscal: 'NF-e 001',
-    cadastradoPor: 'saulofmessias@gmail.com',
+    cadastradoPor: 'dpp@capanema.pa.gov.br',
     atualizadoEm: '2025-09-08 11:09:11'
   },
   {
@@ -448,7 +448,7 @@ export const INITIAL_PATRIMONIOS: PatrimonioRecord[] = [
     status: 'Ativo / Em Uso',
     valorAquisicao: 7800.00,
     dataAquisicao: '2025-10-09',
-    cadastradoPor: 'saulofmessias@gmail.com',
+    cadastradoPor: 'dpp@capanema.pa.gov.br',
     atualizadoEm: '2025-10-09 11:24:34'
   },
   {
@@ -463,7 +463,7 @@ export const INITIAL_PATRIMONIOS: PatrimonioRecord[] = [
     status: 'Ativo / Em Uso',
     valorAquisicao: 1200.00,
     dataAquisicao: '2025-10-10',
-    cadastradoPor: 'saulofmessias@gmail.com',
+    cadastradoPor: 'dpp@capanema.pa.gov.br',
     atualizadoEm: '2025-10-10 09:43:03'
   },
   {
@@ -478,7 +478,7 @@ export const INITIAL_PATRIMONIOS: PatrimonioRecord[] = [
     status: 'Ativo / Em Uso',
     valorAquisicao: 980.00,
     dataAquisicao: '2025-10-14',
-    cadastradoPor: 'saulofmessias@gmail.com',
+    cadastradoPor: 'dpp@capanema.pa.gov.br',
     atualizadoEm: '2025-10-14 10:17:32'
   },
   {
@@ -493,7 +493,7 @@ export const INITIAL_PATRIMONIOS: PatrimonioRecord[] = [
     status: 'Ativo / Em Uso',
     valorAquisicao: 2350.00,
     dataAquisicao: '2025-10-15',
-    cadastradoPor: 'saulofmessias@gmail.com',
+    cadastradoPor: 'dpp@capanema.pa.gov.br',
     atualizadoEm: '2025-10-15 10:35:13'
   },
   {
@@ -508,7 +508,7 @@ export const INITIAL_PATRIMONIOS: PatrimonioRecord[] = [
     status: 'Ativo / Em Uso',
     valorAquisicao: 420.00,
     dataAquisicao: '2025-10-16',
-    cadastradoPor: 'saulofmessias@gmail.com',
+    cadastradoPor: 'dpp@capanema.pa.gov.br',
     atualizadoEm: '2025-10-16 09:24:33'
   },
   {
@@ -523,7 +523,7 @@ export const INITIAL_PATRIMONIOS: PatrimonioRecord[] = [
     status: 'Ativo / Em Uso',
     valorAquisicao: 850.00,
     dataAquisicao: '2025-10-20',
-    cadastradoPor: 'saulofmessias@gmail.com',
+    cadastradoPor: 'dpp@capanema.pa.gov.br',
     atualizadoEm: '2025-10-20 09:49:05'
   },
   {
@@ -539,7 +539,7 @@ export const INITIAL_PATRIMONIOS: PatrimonioRecord[] = [
     valorAquisicao: 1950.00,
     dataAquisicao: '2021-04-05',
     numeroNotaFiscal: 'NF-e 02144',
-    cadastradoPor: 'saulofmessias@gmail.com',
+    cadastradoPor: 'dpp@capanema.pa.gov.br',
     atualizadoEm: '2026-11-06 02:30:00'
   },
   {
@@ -555,7 +555,7 @@ export const INITIAL_PATRIMONIOS: PatrimonioRecord[] = [
     valorAquisicao: 1450.00,
     dataAquisicao: '2019-02-14',
     observacoes: 'Laudo técnico em anexo atestando inviabilidade de reparo. Aguardando próximo leilão de descarte.',
-    cadastradoPor: 'saulofmessias@gmail.com',
+    cadastradoPor: 'dpp@capanema.pa.gov.br',
     atualizadoEm: '2026-11-06 02:30:00'
   },
   {
@@ -572,7 +572,7 @@ export const INITIAL_PATRIMONIOS: PatrimonioRecord[] = [
     dataAquisicao: '2024-06-12',
     numeroNotaFiscal: 'NF-e 14201',
     observacoes: 'Transferência solicitada para a Secretaria de Cultura.',
-    cadastradoPor: 'saulofmessias@gmail.com',
+    cadastradoPor: 'dpp@capanema.pa.gov.br',
     atualizadoEm: '2026-11-06 02:30:00'
   }
 ];
@@ -589,7 +589,7 @@ export const INITIAL_TRANSFERENCIAS: TransferenciaRecord[] = [
     responsavelOrigem: 'Maria Helena dos Santos',
     novoResponsavel: 'Luciana Pinheiro',
     motivo: 'Atendimento à programação cultural e eventos no Teatro Municipal',
-    autorizadoPor: 'saulofmessias@gmail.com',
+    autorizadoPor: 'dpp@capanema.pa.gov.br',
     termoGerado: true
   }
 ];
