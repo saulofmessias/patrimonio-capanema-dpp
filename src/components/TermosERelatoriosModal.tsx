@@ -10,6 +10,7 @@ import { GERENTES_LIST } from './AppSheetPatrimonioForm';
 import { gerarRelatorioPdfTombamentoDescricao } from '../utils/pdfRelatorioSimplificado';
 import { MultiDepartamentoSelector } from './MultiDepartamentoSelector';
 import { MultiLocalSelector } from './MultiLocalSelector';
+import { useAuth } from '../context/AuthContext';
 
 export type TipoDocumentoOficial = 
   | 'termo_cautela' 
@@ -57,8 +58,23 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
   });
   const [modoOrganizacao, setModoOrganizacao] = useState<'continuo' | 'separado'>('continuo');
   const [previewDeptoIndex, setPreviewDeptoIndex] = useState<number>(0);
+  const { profile } = useAuth();
   const [exibirColunaLocal, setExibirColunaLocal] = useState<boolean>(false);
   const [exibirColunaDepartamento, setExibirColunaDepartamento] = useState<boolean>(true);
+  const [exibirColunaConservacao, setExibirColunaConservacao] = useState<boolean>(false);
+  const [exibirColunaConferencia, setExibirColunaConferencia] = useState<boolean>(false);
+  const [isPrintingAll, setIsPrintingAll] = useState<boolean>(false);
+
+  useEffect(() => {
+    const onBeforePrint = () => setIsPrintingAll(true);
+    const onAfterPrint = () => setIsPrintingAll(false);
+    window.addEventListener('beforeprint', onBeforePrint);
+    window.addEventListener('afterprint', onAfterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', onBeforePrint);
+      window.removeEventListener('afterprint', onAfterPrint);
+    };
+  }, []);
   const [nomeResponsavel, setNomeResponsavel] = useState<string>('WALCYLENE CARDOSO COSTA');
   const [matriculaOuCpf, setMatriculaOuCpf] = useState<string>('Matrícula: 1042-8');
   const [cargoResponsavel, setCargoResponsavel] = useState<string>('Chefe de Departamento / Gerente de Patrimônio');
@@ -354,7 +370,12 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
   }, [patrimonios]);
 
   const handleImprimir = () => {
-    window.print();
+    setIsPrintingAll(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.print();
+      });
+    });
   };
 
   const handleBaixarPdf = async () => {
@@ -366,40 +387,83 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
       modoOrganizacao,
       incluirColunaLocal: exibirColunaLocal,
       incluirColunaDepartamento: exibirColunaDepartamento,
+      incluirColunaConservacao: exibirColunaConservacao,
+      incluirColunaConferencia: exibirColunaConferencia,
       patrimonios,
       nomeDiretorDpp,
-      cargoDiretorDpp
+      cargoDiretorDpp,
+      nomeEmissor: profile?.nome || undefined,
     });
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-      {/* Estilos específicos de impressão para folhas A4 oficiais */}
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 print:static print:inset-auto print:block print:bg-white print:p-0 print:overflow-visible">
+      {/* Estilos específicos de impressão para folhas A4 oficiais (sem position:fixed para não repetir página 1) */}
       <style>{`
         @media print {
-          body * {
-            visibility: hidden !important;
+          @page {
+            size: A4 portrait;
+            margin: 10mm 10mm 14mm 10mm;
           }
-          #termo-print-area, #termo-print-area * {
-            visibility: visible !important;
-          }
-          #termo-print-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
+          html, body {
+            height: auto !important;
+            overflow: visible !important;
+            background: #ffffff !important;
             margin: 0 !important;
-            padding: 8mm !important;
-            background: white !important;
-            color: black !important;
+            padding: 0 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          @page {
-            size: A4 portrait;
-            margin: 8mm;
+          body > #root *:not(:has(#termo-print-area)):not(#termo-print-area):not(#termo-print-area *) {
+            display: none !important;
+          }
+          *:has(> #termo-print-area),
+          *:has(#termo-print-area) {
+            position: static !important;
+            inset: auto !important;
+            width: 100% !important;
+            max-width: none !important;
+            height: auto !important;
+            max-height: none !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            display: block !important;
+          }
+          #termo-print-area {
+            position: static !important;
+            display: block !important;
+            width: 100% !important;
+            max-width: none !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
+          }
+          #termo-print-area table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          #termo-print-area thead {
+            display: table-header-group !important;
+          }
+          #termo-print-area tfoot {
+            display: table-row-group !important;
+          }
+          #termo-print-area tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
           .page-break-avoid {
             break-inside: avoid !important;
@@ -408,10 +472,10 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
         }
       `}</style>
 
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-6xl max-h-[96vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-6xl max-h-[96vh] flex flex-col overflow-hidden print:max-w-none print:max-h-none print:h-auto print:overflow-visible print:shadow-none print:border-0 print:rounded-none print:block">
         
         {/* Header do Modal */}
-        <div className="px-6 py-4 bg-gradient-to-r from-slate-950 via-[#080c44] to-slate-950 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
+        <div className="px-6 py-4 bg-gradient-to-r from-slate-950 via-[#080c44] to-slate-950 text-white flex items-center justify-between shrink-0 border-b border-slate-800 print:hidden">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/40 flex items-center justify-center text-blue-300">
               <FileText className="w-5 h-5" />
@@ -433,7 +497,7 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setExibirColunaLocal(prev => !prev)}
-              className={`px-3 py-2 text-xs font-bold rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 py-2 text-xs font-bold rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer ${
                 exibirColunaLocal
                   ? 'bg-indigo-600 text-white border-indigo-400 shadow-sm'
                   : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
@@ -441,8 +505,40 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
               title="Clique para incluir ou ocultar Local / Unidade no relatório"
             >
               <MapPin className="w-3.5 h-3.5" />
-              <span>Local / Unidade: {exibirColunaLocal ? 'Incluído' : 'Oculto'}</span>
+              <span>Local: {exibirColunaLocal ? 'Sim' : 'Não'}</span>
             </button>
+
+            {tipoDocumento === 'relatorio_simplificado' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setExibirColunaConservacao(prev => !prev)}
+                  className={`px-2.5 py-2 text-xs font-bold rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer ${
+                    exibirColunaConservacao
+                      ? 'bg-amber-600 text-white border-amber-400 shadow-sm'
+                      : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
+                  }`}
+                  title="Incluir coluna de Estado de Conservação no relatório"
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>Estado: {exibirColunaConservacao ? 'Sim' : 'Não'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExibirColunaConferencia(prev => !prev)}
+                  className={`px-2.5 py-2 text-xs font-bold rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer ${
+                    exibirColunaConferencia
+                      ? 'bg-sky-600 text-white border-sky-400 shadow-sm'
+                      : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
+                  }`}
+                  title="Incluir coluna [ ] para conferência física em prancheta"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Conf. [ ]: {exibirColunaConferencia ? 'Sim' : 'Não'}</span>
+                </button>
+              </>
+            )}
 
             <button
               onClick={handleBaixarPdf}
@@ -472,10 +568,10 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
         </div>
 
         {/* Layout Dividido: Painel de Configurações (4 cols) e Visualização Formal (8 cols) */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200 print:block print:overflow-visible print:divide-none">
           
           {/* LADO ESQUERDO: CONTROLES */}
-          <div className="lg:col-span-4 p-5 overflow-y-auto space-y-5 bg-slate-50/80">
+          <div className="lg:col-span-4 p-5 overflow-y-auto space-y-5 bg-slate-50/80 print:hidden">
             
             {/* Escolha do Tipo de Documento */}
             <div>
@@ -1156,7 +1252,7 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
           </div>
 
           {/* LADO DIREITO: DOCUMENTO FORMATADO A4 OFICIAL (PREVIEW & IMPRESSÃO) */}
-          <div className="lg:col-span-8 p-6 overflow-y-auto bg-slate-200/70 flex justify-center">
+          <div className="lg:col-span-8 p-6 overflow-y-auto bg-slate-200/70 flex justify-center print:block print:p-0 print:bg-white print:overflow-visible">
             
             <div 
               id="termo-print-area"
@@ -1545,38 +1641,38 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
                   )}
 
                   <div className="p-3 bg-slate-50 border border-slate-300 rounded-lg space-y-1.5 text-[11px] font-sans">
-                    <div className="flex items-center justify-between">
-                      <div>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
                         <strong>SECRETARIA / ÓRGÃO:</strong> {secretariaSelecionada === 'Todas' ? 'TODAS AS SECRETARIAS REUNIDAS' : secretariaSelecionada}
                       </div>
-                      <div className="text-right">
+                      <div className="text-right whitespace-nowrap shrink-0">
                         <strong>Total de Bens:</strong>{' '}
                         <span className="font-mono font-bold text-blue-900">
                           {departamentosSelecionados.length > 1 && modoOrganizacao === 'continuo'
-                            ? `${totalBensTodosDeptosSelecionados} ${totalBensTodosDeptosSelecionados === 1 ? 'item' : 'itens'}`
-                            : `${bensSimplificados.length} ${bensSimplificados.length === 1 ? 'item' : 'itens'}`}
+                            ? `${totalBensTodosDeptosSelecionados.toLocaleString('pt-BR')} ${totalBensTodosDeptosSelecionados === 1 ? 'item' : 'itens'}`
+                            : `${bensSimplificados.length.toLocaleString('pt-BR')} ${bensSimplificados.length === 1 ? 'item' : 'itens'}`}
                         </span>
                       </div>
                     </div>
                     {exibirColunaLocal && (
-                      <div className="flex items-center justify-between pt-1 border-t border-slate-200">
-                        <div>
+                      <div className="flex items-center justify-between gap-4 pt-1 border-t border-slate-200">
+                        <div className="min-w-0">
                           <strong>LOCAL / UNIDADE:</strong>{' '}
                           <span className="font-bold text-blue-950">
                             {labelLocalResumo}
                           </span>
                         </div>
-                        <div className="text-right text-slate-600">
+                        <div className="text-right text-slate-600 whitespace-nowrap shrink-0">
                           <strong>Data:</strong> {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
                         </div>
                       </div>
                     )}
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-200">
-                      <div>
+                    <div className="flex items-center justify-between gap-4 pt-1 border-t border-slate-200">
+                      <div className="min-w-0">
                         <strong>DEPARTAMENTO / SETOR:</strong>{' '}
                         <span className="font-bold text-blue-900">
                           {departamentosSelecionados.length > 1 && modoOrganizacao === 'continuo'
-                            ? `MÚLTIPLOS SETORES (${departamentosSelecionados.length} DEPARTAMENTOS • MODO CONTÍNUO)`
+                            ? `${departamentosSelecionados.length} DEPARTAMENTOS (MODO CONTÍNUO)`
                             : deptoPreviewAtivo 
                               ? (departamentosSelecionados.length > 1 
                                   ? `${deptoPreviewAtivo.toUpperCase()} (${previewDeptoIndex + 1} de ${departamentosSelecionados.length})` 
@@ -1585,131 +1681,141 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
                         </span>
                       </div>
                       {!exibirColunaLocal && (
-                        <div className="text-right text-slate-600">
+                        <div className="text-right text-slate-600 whitespace-nowrap shrink-0">
                           <strong>Data:</strong> {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Tabela dos Bens: TOMBAMENTO, DESCRIÇÃO, LOCAL / UNIDADE e DEPARTAMENTO */}
+                  {/* Tabela dos Bens: TOMBAMENTO, DESCRIÇÃO e colunas opcionais */}
                   {(() => {
-                    const totalCols = 3 + (exibirColunaLocal ? 1 : 0) + (exibirColunaDepartamento ? 1 : 0);
+                    const isModoContinuoMulti = departamentosSelecionados.length > 1 && modoOrganizacao === 'continuo';
+                    const listaBase = isModoContinuoMulti ? bensContinuosOrdenados : bensSimplificados;
+                    const limitePreview = isModoContinuoMulti ? 150 : 80;
+                    const itensExibidos = isPrintingAll ? listaBase : listaBase.slice(0, limitePreview);
+                    const totalCols =
+                      3 +
+                      (exibirColunaLocal ? 1 : 0) +
+                      (exibirColunaDepartamento ? 1 : 0) +
+                      (exibirColunaConservacao ? 1 : 0) +
+                      (exibirColunaConferencia ? 1 : 0);
+
+                    const resumirEstado = (est?: string) => {
+                      const s = (est || '').trim();
+                      if (!s) return '—';
+                      if (s.toLowerCase().startsWith('inserv')) return 'Inservível';
+                      if (s.toLowerCase().startsWith('ruim')) return 'Ruim';
+                      return s;
+                    };
+
                     return (
-                      <div className="border border-slate-800 rounded overflow-hidden">
-                        <table className="w-full text-left border-collapse text-[10px] font-sans">
-                          <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
-                            <tr>
-                              <th className="py-1.5 px-2.5 border-r border-slate-700 w-12 text-center">Item</th>
-                              <th className="py-1.5 px-3 border-r border-slate-700 w-28 text-center">Nº Tombamento</th>
-                              <th className="py-1.5 px-3 border-r border-slate-700">Descrição do Bem Patrimonial</th>
-                              {exibirColunaLocal && (
-                                <th className="py-1.5 px-3 border-r border-slate-700 w-44">Local / Unidade</th>
-                              )}
-                              {exibirColunaDepartamento && (
-                                <th className="py-1.5 px-3 w-40">Departamento / Setor</th>
-                              )}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-200">
-                            {departamentosSelecionados.length > 1 && modoOrganizacao === 'continuo' ? (
-                              // MODO CONTÍNUO: TABELA ÚNICA CORRIDA SEM DIVISÕES DE DEPARTAMENTO
-                              bensContinuosOrdenados.length === 0 ? (
+                      <>
+                        <div className="border border-slate-800 rounded overflow-hidden print:rounded-none">
+                          <table className="w-full text-left border-collapse text-[10px] font-sans">
+                            <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
+                              <tr>
+                                <th className="py-1.5 px-2 border-r border-slate-700 w-10 text-center">Item</th>
+                                <th className="py-1.5 px-2.5 border-r border-slate-700 w-24 text-center">Nº Tombo</th>
+                                <th className="py-1.5 px-3 border-r border-slate-700">Descrição do Bem Patrimonial</th>
+                                {exibirColunaLocal && (
+                                  <th className="py-1.5 px-2.5 border-r border-slate-700 w-40">Local / Unidade</th>
+                                )}
+                                {exibirColunaDepartamento && (
+                                  <th className="py-1.5 px-2.5 border-r border-slate-700 w-36">Departamento / Setor</th>
+                                )}
+                                {exibirColunaConservacao && (
+                                  <th className="py-1.5 px-2 border-r border-slate-700 w-20 text-center">Estado</th>
+                                )}
+                                {exibirColunaConferencia && (
+                                  <th className="py-1.5 px-2 w-12 text-center">Conf.</th>
+                                )}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200">
+                              {itensExibidos.length === 0 ? (
                                 <tr>
                                   <td colSpan={totalCols} className="py-4 text-center text-slate-500 italic">
-                                    Nenhum bem tombado registrado para os departamentos selecionados.
+                                    Nenhum bem tombado registrado para os filtros selecionados.
                                   </td>
                                 </tr>
                               ) : (
-                                bensContinuosOrdenados.slice(0, 120).map((bem, index) => (
+                                itensExibidos.map((bem, index) => (
                                   <tr key={bem.id} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                    <td className="py-1 px-2.5 border-r border-slate-200 text-center font-mono text-slate-500 text-[9px]">
+                                    <td className="py-1 px-2 border-r border-slate-200 text-center font-mono text-slate-500 text-[9px]">
                                       {index + 1}
                                     </td>
-                                    <td className="py-1 px-3 border-r border-slate-200 font-mono font-bold text-blue-900 text-center">
+                                    <td className="py-1 px-2.5 border-r border-slate-200 font-mono font-bold text-blue-900 text-center whitespace-nowrap">
                                       {bem.numeroTombamento || bem.etiquetaNumero}
                                     </td>
                                     <td className="py-1 px-3 border-r border-slate-200 font-sans text-slate-800">
                                       {bem.descricao}
                                     </td>
                                     {exibirColunaLocal && (
-                                      <td className="py-1 px-3 border-r border-slate-200 font-sans text-blue-950 font-medium text-[9.5px] truncate max-w-[180px]">
+                                      <td className="py-1 px-2.5 border-r border-slate-200 font-sans text-blue-950 font-medium text-[9.5px]">
                                         {bem.local || bem.localizacaoExata || 'Sede / Geral'}
                                       </td>
                                     )}
                                     {exibirColunaDepartamento && (
-                                      <td className="py-1 px-3 font-sans text-slate-600 text-[9.5px] truncate max-w-xs">
+                                      <td className="py-1 px-2.5 border-r border-slate-200 font-sans text-slate-600 text-[9.5px]">
                                         {bem.departamento || bem.localizacaoExata || 'Setor Geral'}
+                                      </td>
+                                    )}
+                                    {exibirColunaConservacao && (
+                                      <td className="py-1 px-2 border-r border-slate-200 text-center font-sans text-[9px] text-slate-700 whitespace-nowrap">
+                                        {resumirEstado(bem.estadoConservacao)}
+                                      </td>
+                                    )}
+                                    {exibirColunaConferencia && (
+                                      <td className="py-1 px-2 text-center font-mono text-slate-400 text-[10px]">
+                                        [ &nbsp; ]
                                       </td>
                                     )}
                                   </tr>
                                 ))
-                              )
-                            ) : (
-                              // MODO FOLHA SEPARADA OU DEPARTAMENTO ÚNICO
-                              bensSimplificados.length === 0 ? (
-                                <tr>
-                                  <td colSpan={totalCols} className="py-4 text-center text-slate-500 italic">
-                                    Nenhum bem tombado registrado para este departamento.
-                                  </td>
-                                </tr>
-                              ) : (
-                                bensSimplificados.slice(0, 45).map((bem, index) => (
-                                  <tr key={bem.id} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                    <td className="py-1 px-2.5 border-r border-slate-200 text-center font-mono text-slate-500 text-[9px]">
-                                      {index + 1}
-                                    </td>
-                                    <td className="py-1 px-3 border-r border-slate-200 font-mono font-bold text-blue-900 text-center">
-                                      {bem.numeroTombamento || bem.etiquetaNumero}
-                                    </td>
-                                    <td className="py-1 px-3 border-r border-slate-200 font-sans text-slate-800">
-                                      {bem.descricao}
-                                    </td>
-                                    {exibirColunaLocal && (
-                                      <td className="py-1 px-3 border-r border-slate-200 font-sans text-blue-950 font-medium text-[9.5px] truncate max-w-[180px]">
-                                        {bem.local || bem.localizacaoExata || 'Sede / Geral'}
-                                      </td>
-                                    )}
-                                    {exibirColunaDepartamento && (
-                                      <td className="py-1 px-3 font-sans text-slate-600 text-[9.5px] truncate max-w-xs">
-                                        {bem.departamento || bem.localizacaoExata || 'Setor Geral'}
-                                      </td>
-                                    )}
-                                  </tr>
-                                ))
-                              )
-                            )}
-                          </tbody>
-                          <tfoot className="bg-slate-100 font-bold border-t border-slate-800 text-[10px]">
-                            <tr>
-                              <td colSpan={totalCols - 1} className="py-1.5 px-3 text-right uppercase">
-                                {departamentosSelecionados.length > 1 && modoOrganizacao === 'continuo'
-                                  ? `Total Geral (${departamentosSelecionados.length} Departamentos):`
-                                  : `Total de Bens (${deptoPreviewAtivo || 'Geral'}):`}
-                              </td>
-                              <td className="py-1.5 px-3 font-mono text-slate-950 font-bold">
-                                {departamentosSelecionados.length > 1 && modoOrganizacao === 'continuo'
-                                  ? `${totalBensTodosDeptosSelecionados.toLocaleString('pt-BR')} ${totalBensTodosDeptosSelecionados === 1 ? 'item' : 'itens'}`
-                                  : `${bensSimplificados.length.toLocaleString('pt-BR')} ${bensSimplificados.length === 1 ? 'item' : 'itens'}`}
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
+                              )}
+                            </tbody>
+                            <tfoot className="bg-slate-100 font-bold border-t border-slate-800 text-[10px]">
+                              <tr>
+                                <td colSpan={totalCols - 1} className="py-1.5 px-3 text-right uppercase">
+                                  {isModoContinuoMulti
+                                    ? `Total Geral (${departamentosSelecionados.length} Departamentos):`
+                                    : `Total de Bens (${deptoPreviewAtivo || 'Geral'}):`}
+                                </td>
+                                <td className="py-1.5 px-3 font-mono text-slate-950 font-bold whitespace-nowrap text-right">
+                                  {listaBase.length.toLocaleString('pt-BR')} {listaBase.length === 1 ? 'item' : 'itens'}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+
+                        {!isPrintingAll && listaBase.length > limitePreview && (
+                          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center text-[10.5px] text-blue-900 font-medium space-y-1 print:hidden">
+                            <div>
+                              * A pré-visualização em tela exibe os primeiros {limitePreview} itens para navegação fluida.
+                            </div>
+                            <div className="font-bold text-emerald-800">
+                              Tanto "Imprimir (A4)" quanto "Baixar PDF (.pdf)" incluem todos os {listaBase.length.toLocaleString('pt-BR')} bens selecionados.
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-4 text-[9px] font-sans text-slate-500 page-break-avoid">
+                          <span>
+                            Prefeitura Municipal de Capanema • DPP • Emissão:{' '}
+                            {new Date().toLocaleDateString('pt-BR')} às{' '}
+                            {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          {profile?.nome && (
+                            <span className="whitespace-nowrap shrink-0">
+                              Emitido por: <strong className="text-slate-700">{profile.nome}</strong>
+                            </span>
+                          )}
+                        </div>
+                      </>
                     );
                   })()}
-
-                  {((departamentosSelecionados.length > 1 && modoOrganizacao === 'continuo' && bensContinuosOrdenados.length > 120) ||
-                    (bensSimplificados.length > 45 && !(departamentosSelecionados.length > 1 && modoOrganizacao === 'continuo'))) && (
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center text-[10.5px] text-blue-900 font-medium space-y-1">
-                      <div>
-                        * A pré-visualização em tela exibe os primeiros {departamentosSelecionados.length > 1 && modoOrganizacao === 'continuo' ? '120' : '45'} itens para navegação fluida.
-                      </div>
-                      <div className="font-bold text-emerald-800">
-                        Para baixar o documento completo com todos os {(departamentosSelecionados.length > 1 && modoOrganizacao === 'continuo' ? bensContinuosOrdenados.length : bensSimplificados.length).toLocaleString('pt-BR')} bens, clique no botão "Baixar PDF (.pdf)" no canto superior.
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 

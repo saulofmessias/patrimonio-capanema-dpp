@@ -1,6 +1,5 @@
 import type jsPDF from 'jspdf';
 import { PatrimonioRecord } from '../types/appsheet';
-import { GERENTES_LIST } from '../components/AppSheetPatrimonioForm';
 import { BRASAO_CAPANEMA_PNG_BASE64 } from './brasaoBase64';
 
 export interface GerarPdfOptions {
@@ -12,15 +11,32 @@ export interface GerarPdfOptions {
   modoOrganizacao?: 'continuo' | 'separado'; // 'continuo' economiza papel agrupando na mesma folha; 'separado' quebra 1 folha por setor
   incluirColunaLocal?: boolean;
   incluirColunaDepartamento?: boolean;
+  incluirColunaConservacao?: boolean;
+  incluirColunaConferencia?: boolean;
   patrimonios: PatrimonioRecord[];
   nomeDiretorDpp?: string;
   cargoDiretorDpp?: string;
+  nomeEmissor?: string;
+}
+
+function resumirConservacao(estado?: string): string {
+  const s = (estado || '').trim();
+  if (!s) return '—';
+  if (s.toLowerCase().startsWith('inserv')) return 'Inservível';
+  if (s.toLowerCase().startsWith('ruim')) return 'Ruim';
+  return s;
+}
+
+function truncarTexto(texto: string, maxChars: number): string {
+  if (texto.length <= maxChars) return texto;
+  return `${texto.slice(0, maxChars - 1)}…`;
 }
 
 /**
  * Gera e faz download de um PDF oficial da Prefeitura Municipal de Capanema
- * contendo o Número do Tombamento e a Descrição do Bem,
- * com suporte ao modo contínuo (economia drástica de papel) ou página individual por departamento.
+ * contendo o Número do Tombamento, Descrição do Bem e colunas opcionais
+ * (Local, Departamento, Estado de Conservação e Conferência física),
+ * com suporte ao modo contínuo ou página individual por departamento.
  */
 export async function gerarRelatorioPdfTombamentoDescricao({
   secretaria,
@@ -31,9 +47,10 @@ export async function gerarRelatorioPdfTombamentoDescricao({
   modoOrganizacao = 'continuo',
   incluirColunaLocal,
   incluirColunaDepartamento,
+  incluirColunaConservacao = false,
+  incluirColunaConferencia = false,
   patrimonios,
-  nomeDiretorDpp = 'Eliel da Silva Marques',
-  cargoDiretorDpp = 'Diretor de Patrimônio Público (DPP)'
+  nomeEmissor,
 }: GerarPdfOptions): Promise<void> {
   // Normalizar lista de locais selecionados
   let listaLocais: string[] = [];
@@ -82,14 +99,12 @@ export async function gerarRelatorioPdfTombamentoDescricao({
     listaDeptos = [departamento.trim()];
   }
 
-  // 2. Instanciar jsPDF (orientação portrait A4).
-  // jsPDF e jspdf-autotable sao carregados sob demanda: sao ~250 KB e so
-  // interessam no momento em que o servidor gera o PDF.
+  // 2. Instanciar jsPDF (orientação portrait A4) sob demanda.
   const [{ default: JsPDF }, { default: autoTable }] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
   ]);
-  const doc = new JsPDF({
+  const doc: jsPDF = new JsPDF({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4'
@@ -97,15 +112,17 @@ export async function gerarRelatorioPdfTombamentoDescricao({
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const dataHoje = new Date().toLocaleDateString('pt-BR', {
+  const agora = new Date();
+  const dataHoje = agora.toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: 'long',
     year: 'numeric'
   });
+  const horaEmissao = agora.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 
-  // Localizar gestor da secretaria
-  const gerenteInfo = GERENTES_LIST.find(g => g.secretaria === secretaria);
-  const nomeGestor = gerenteInfo?.nome || 'Responsável Setorial';
   const labelSecretaria = secretaria === 'Todas' ? 'TODAS AS SECRETARIAS REUNIDAS' : secretaria.toUpperCase();
   const labelLocal = listaLocais.length === 0
     ? 'TODOS OS LOCAIS / UNIDADES'
@@ -117,36 +134,32 @@ export async function gerarRelatorioPdfTombamentoDescricao({
   const deveExibirColunaDepartamento = incluirColunaDepartamento !== false;
   const startY = deveExibirColunaLocal ? 49 : 44;
 
-  // Helper para desenhar o cabeçalho oficial minimalista conforme solicitado
+  // Helper para desenhar o cabeçalho oficial em todas as páginas
   const desenharCabecalho = (
-    nomeDeptoAtual?: string, 
+    nomeDeptoAtual?: string,
     totalBensDepto?: number,
     indiceDepto?: number,
     totalDeptos?: number
   ) => {
-    // Imagem do Brasão Oficial da Prefeitura de Capanema - PA
     try {
       doc.addImage(BRASAO_CAPANEMA_PNG_BASE64, 'PNG', 14, 7.5, 11, 14);
-    } catch (e) {
+    } catch {
       // continua sem imagem se houver incompatibilidade
     }
 
-    // Títulos oficiais
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.setTextColor(15, 23, 42); // slate-900
-    doc.text('PREFEITURA MUNICIPAL DE CAPANEMA', 28, 14);
+    doc.setTextColor(15, 23, 42);
+    doc.text('PREFEITURA MUNICIPAL DE CAPANEMA', 28, 13.5);
 
-    doc.setFontSize(9);
-    doc.setTextColor(30, 41, 59); // slate-800
-    doc.text('DIRETORIA DE PATRIMÔNIO PÚBLICO (DPP)', 28, 19);
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text('DIRETORIA DE PATRIMÔNIO PÚBLICO (DPP) • RELATÓRIO OFICIAL DE BENS', 28, 18.5);
 
-    // Linha divisória
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.3);
     doc.line(14, 23.5, pageWidth - 14, 23.5);
 
-    // Caixa de Identificação (3 linhas se Local estiver incluído; 2 linhas se oculto)
     const cardHeight = deveExibirColunaLocal ? 20 : 14.5;
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
@@ -156,37 +169,39 @@ export async function gerarRelatorioPdfTombamentoDescricao({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(15, 23, 42);
-    doc.text(`SECRETARIA / ÓRGÃO: ${labelSecretaria}`, 17, 31);
+    doc.text(truncarTexto(`SECRETARIA / ÓRGÃO: ${labelSecretaria}`, 72), 17, 31);
 
     const qtdExibir = totalBensDepto !== undefined ? totalBensDepto : bensDaSecretaria.length;
-    doc.text(`Total de Bens: ${qtdExibir.toLocaleString('pt-BR')} ${qtdExibir === 1 ? 'item' : 'itens'}`, pageWidth - 17, 31, { align: 'right' });
+    doc.text(
+      `Total de Bens: ${qtdExibir.toLocaleString('pt-BR')} ${qtdExibir === 1 ? 'item' : 'itens'}`,
+      pageWidth - 17,
+      31,
+      { align: 'right' }
+    );
 
     const tagLote = totalDeptos && totalDeptos > 1 ? ` (${indiceDepto} de ${totalDeptos})` : '';
     const labelDepto = nomeDeptoAtual ? `${nomeDeptoAtual.toUpperCase()}${tagLote}` : 'TODOS OS DEPARTAMENTOS';
 
     if (deveExibirColunaLocal) {
-      // Linha 2: LOCAL / UNIDADE (esquerda) e Data (direita)
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.setTextColor(30, 58, 138); // blue-900
-      doc.text(`LOCAL / UNIDADE: ${labelLocal}`, 17, 36.5);
+      doc.setTextColor(30, 58, 138);
+      doc.text(truncarTexto(`LOCAL / UNIDADE: ${labelLocal}`, 68), 17, 36.5);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(71, 85, 105);
       doc.text(`Data: ${dataHoje}`, pageWidth - 17, 36.5, { align: 'right' });
 
-      // Linha 3: DEPARTAMENTO / SETOR (esquerda)
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(15, 23, 42);
-      doc.text(`DEPARTAMENTO / SETOR: ${labelDepto}`, 17, 42);
+      doc.text(truncarTexto(`DEPARTAMENTO / SETOR: ${labelDepto}`, 92), 17, 42);
     } else {
-      // Linha 2: DEPARTAMENTO / SETOR (esquerda) e Data (direita)
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(15, 23, 42);
-      doc.text(`DEPARTAMENTO / SETOR: ${labelDepto}`, 17, 36.5);
+      doc.text(truncarTexto(`DEPARTAMENTO / SETOR: ${labelDepto}`, 66), 17, 36.5);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
@@ -203,10 +218,11 @@ export async function gerarRelatorioPdfTombamentoDescricao({
     if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
       return numA - numB;
     }
-    return (a.numeroTombamento || a.etiquetaNumero || a.id).localeCompare(b.numeroTombamento || b.etiquetaNumero || b.id);
+    return (a.numeroTombamento || a.etiquetaNumero || a.id).localeCompare(
+      b.numeroTombamento || b.etiquetaNumero || b.id
+    );
   };
 
-  // Helper para ordenar bens dentro de um mesmo departamento (por Local / Unidade -> Nº Tombamento)
   const ordenarBens = (lista: PatrimonioRecord[]) => {
     return [...lista].sort((a, b) => {
       const locA = (a.local || a.localizacaoExata || 'Sede / Geral').trim();
@@ -217,7 +233,6 @@ export async function gerarRelatorioPdfTombamentoDescricao({
     });
   };
 
-  // Helper para ordenar relatório geral em sequência hierárquica (Local -> Departamento -> Tombamento)
   const ordenarBensHierarquia = (lista: PatrimonioRecord[]) => {
     return [...lista].sort((a, b) => {
       const locA = (a.local || a.localizacaoExata || 'Sede / Geral').trim();
@@ -241,8 +256,89 @@ export async function gerarRelatorioPdfTombamentoDescricao({
     });
   };
 
+  // Construtor dinâmico de cabeçalho, linhas e larguras de coluna (compatível com todas as combinações)
+  const montarEstruturaTabela = (
+    bens: PatrimonioRecord[],
+    mostrarLocal: boolean,
+    mostrarDepto: boolean,
+    mensagemVazia: string
+  ) => {
+    const headCols: string[] = ['Item', 'Nº Tombamento', 'Descrição do Bem Patrimonial'];
+    const colStyles: Record<number, Record<string, unknown>> = {
+      0: { halign: 'center', cellWidth: 11, textColor: [100, 116, 139] },
+      1: { halign: 'center', cellWidth: 24, fontStyle: 'bold', textColor: [30, 58, 138] },
+      2: { halign: 'left' },
+    };
+
+    let colIdx = 3;
+    const extrasCount =
+      (mostrarLocal ? 1 : 0) +
+      (mostrarDepto ? 1 : 0) +
+      (incluirColunaConservacao ? 1 : 0) +
+      (incluirColunaConferencia ? 1 : 0);
+
+    if (mostrarLocal) {
+      headCols.push('Local / Unidade');
+      colStyles[colIdx++] = {
+        halign: 'left',
+        cellWidth: extrasCount >= 3 ? 32 : 40,
+        textColor: [30, 58, 138],
+        fontSize: 7.5,
+      };
+    }
+    if (mostrarDepto) {
+      headCols.push('Departamento / Setor');
+      colStyles[colIdx++] = {
+        halign: 'left',
+        cellWidth: extrasCount >= 3 ? 30 : 40,
+        textColor: [71, 85, 105],
+        fontSize: 7.5,
+      };
+    }
+    if (incluirColunaConservacao) {
+      headCols.push('Estado');
+      colStyles[colIdx++] = {
+        halign: 'center',
+        cellWidth: 19,
+        textColor: [51, 65, 85],
+        fontSize: 7.5,
+      };
+    }
+    if (incluirColunaConferencia) {
+      headCols.push('Conf.');
+      colStyles[colIdx++] = {
+        halign: 'center',
+        cellWidth: 12,
+        textColor: [100, 116, 139],
+        fontSize: 8,
+      };
+    }
+
+    const rows = bens.map((bem, idx) => {
+      const row: string[] = [
+        (idx + 1).toString(),
+        bem.numeroTombamento || bem.etiquetaNumero || '—',
+        bem.descricao ? bem.descricao.trim() : 'Sem descrição cadastrada',
+      ];
+      if (mostrarLocal) row.push(bem.local || bem.localizacaoExata || 'Sede / Geral');
+      if (mostrarDepto) row.push(bem.departamento || bem.localizacaoExata || 'Setor Geral');
+      if (incluirColunaConservacao) row.push(resumirConservacao(bem.estadoConservacao));
+      if (incluirColunaConferencia) row.push('[   ]');
+      return row;
+    });
+
+    const emptyRow = ['—', '—', mensagemVazia];
+    while (emptyRow.length < headCols.length) emptyRow.push('—');
+
+    return {
+      head: [headCols],
+      body: rows.length > 0 ? rows : [emptyRow],
+      columnStyles: colStyles,
+    };
+  };
+
   // =========================================================================
-  // CENÁRIO 1: MODO CONTÍNUO (ECONOMIA DE PAPEL) - Tabela única corrida sem divisões
+  // CENÁRIO 1: MODO CONTÍNUO (ECONOMIA DE PAPEL)
   // =========================================================================
   if (modoOrganizacao === 'continuo' && listaDeptos.length > 0) {
     const departamentosSet = new Set(listaDeptos.map(d => d.trim().toLowerCase()));
@@ -253,61 +349,22 @@ export async function gerarRelatorioPdfTombamentoDescricao({
     const bensOrdenados = ordenarBensHierarquia(bensFiltrados);
     const totalBensLote = bensOrdenados.length;
 
-    const headCols = ['Item', 'Nº Tombamento', 'Descrição do Bem Patrimonial'];
-    if (deveExibirColunaLocal) headCols.push('Local / Unidade');
-    if (deveExibirColunaDepartamento) headCols.push('Departamento / Setor');
-    const headContinuo = [headCols];
+    const { head, body, columnStyles } = montarEstruturaTabela(
+      bensOrdenados,
+      deveExibirColunaLocal,
+      deveExibirColunaDepartamento,
+      'Nenhum bem tombado registrado para os departamentos selecionados'
+    );
 
-    const tableBody = bensOrdenados.map((bem, idx) => {
-      const row = [
-        (idx + 1).toString(),
-        bem.numeroTombamento || bem.etiquetaNumero || '—',
-        bem.descricao ? bem.descricao.trim() : 'Sem descrição cadastrada'
-      ];
-      if (deveExibirColunaLocal) {
-        row.push(bem.local || bem.localizacaoExata || 'Sede / Geral');
-      }
-      if (deveExibirColunaDepartamento) {
-        row.push(bem.departamento || bem.localizacaoExata || 'Setor Geral');
-      }
-      return row;
-    });
-
-    const emptyRowCols = ['—', '—', 'Nenhum bem tombado registrado para os departamentos selecionados'];
-    if (deveExibirColunaLocal) emptyRowCols.push('—');
-    if (deveExibirColunaDepartamento) emptyRowCols.push('—');
-
-    const labelDeptoHeader = listaDeptos.length === 1 
-      ? listaDeptos[0].toUpperCase() 
+    const labelDeptoHeader = listaDeptos.length === 1
+      ? listaDeptos[0].toUpperCase()
       : `${listaDeptos.length} DEPARTAMENTOS SELECIONADOS`;
-
-    const colStylesContinuo: Record<number, any> =
-      deveExibirColunaLocal && deveExibirColunaDepartamento
-        ? {
-            0: { halign: 'center', cellWidth: 11, textColor: [100, 116, 139] },
-            1: { halign: 'center', cellWidth: 25, fontStyle: 'bold', textColor: [30, 58, 138] },
-            2: { halign: 'left' },
-            3: { halign: 'left', cellWidth: 38, textColor: [30, 58, 138], fontSize: 7.5 },
-            4: { halign: 'left', cellWidth: 34, textColor: [71, 85, 105], fontSize: 7.5 }
-          }
-        : deveExibirColunaLocal || deveExibirColunaDepartamento
-        ? {
-            0: { halign: 'center', cellWidth: 12, textColor: [100, 116, 139] },
-            1: { halign: 'center', cellWidth: 28, fontStyle: 'bold', textColor: [30, 58, 138] },
-            2: { halign: 'left' },
-            3: { halign: 'left', cellWidth: 46, textColor: [71, 85, 105], fontSize: 7.5 }
-          }
-        : {
-            0: { halign: 'center', cellWidth: 14, textColor: [100, 116, 139] },
-            1: { halign: 'center', cellWidth: 32, fontStyle: 'bold', textColor: [30, 58, 138] },
-            2: { halign: 'left' }
-          };
 
     autoTable(doc, {
       startY,
       margin: { left: 14, right: 14, top: startY, bottom: 14 },
-      head: headContinuo,
-      body: tableBody.length > 0 ? tableBody : [emptyRowCols],
+      head,
+      body,
       theme: 'grid',
       styles: {
         font: 'helvetica',
@@ -321,11 +378,11 @@ export async function gerarRelatorioPdfTombamentoDescricao({
         fillColor: [15, 23, 42],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
-        fontSize: 8,
+        fontSize: 7.8,
         halign: 'left',
-        cellPadding: 2.5
+        cellPadding: 2.3
       },
-      columnStyles: colStylesContinuo,
+      columnStyles,
       alternateRowStyles: {
         fillColor: [248, 250, 252]
       },
@@ -338,23 +395,6 @@ export async function gerarRelatorioPdfTombamentoDescricao({
   // CENÁRIO 2: MODO SEPARADO (1 Página por Departamento)
   // =========================================================================
   } else if (listaDeptos.length > 0) {
-    const headSeparado = deveExibirColunaLocal
-      ? [['Item', 'Nº Tombamento', 'Descrição do Bem Patrimonial', 'Local / Unidade']]
-      : [['Item', 'Nº Tombamento', 'Descrição do Bem Patrimonial']];
-
-    const colStylesSeparado: Record<number, any> = deveExibirColunaLocal
-      ? {
-          0: { halign: 'center', cellWidth: 12, textColor: [100, 116, 139] },
-          1: { halign: 'center', cellWidth: 28, fontStyle: 'bold', textColor: [30, 58, 138] },
-          2: { halign: 'left' },
-          3: { halign: 'left', cellWidth: 46, textColor: [71, 85, 105], fontSize: 7.5 }
-        }
-      : {
-          0: { halign: 'center', cellWidth: 14, textColor: [100, 116, 139] },
-          1: { halign: 'center', cellWidth: 32, fontStyle: 'bold', textColor: [30, 58, 138] },
-          2: { halign: 'left' }
-        };
-
     listaDeptos.forEach((deptoNome, idx) => {
       if (idx > 0) {
         doc.addPage();
@@ -367,25 +407,18 @@ export async function gerarRelatorioPdfTombamentoDescricao({
         })
       );
 
-      const rows = bensDoDepto.map((bem, itemIdx) => {
-        const itemNum = (itemIdx + 1).toString();
-        const tombo = bem.numeroTombamento || bem.etiquetaNumero || '—';
-        const desc = bem.descricao ? bem.descricao.trim() : 'Sem descrição cadastrada';
-        const locNome = bem.local || bem.localizacaoExata || 'Sede / Geral';
-        return deveExibirColunaLocal
-          ? [itemNum, tombo, desc, locNome]
-          : [itemNum, tombo, desc];
-      });
-
-      const emptyRow = deveExibirColunaLocal
-        ? [['—', '—', 'Nenhum bem tombado registrado para este departamento', '—']]
-        : [['—', '—', 'Nenhum bem tombado registrado para este departamento']];
+      const { head, body, columnStyles } = montarEstruturaTabela(
+        bensDoDepto,
+        deveExibirColunaLocal,
+        false,
+        'Nenhum bem tombado registrado para este departamento'
+      );
 
       autoTable(doc, {
         startY,
         margin: { left: 14, right: 14, top: startY, bottom: 14 },
-        head: headSeparado,
-        body: rows.length > 0 ? rows : emptyRow,
+        head,
+        body,
         theme: 'grid',
         styles: {
           font: 'helvetica',
@@ -399,11 +432,11 @@ export async function gerarRelatorioPdfTombamentoDescricao({
           fillColor: [15, 23, 42],
           textColor: [255, 255, 255],
           fontStyle: 'bold',
-          fontSize: 8,
+          fontSize: 7.8,
           halign: 'left',
-          cellPadding: 2.5
+          cellPadding: 2.3
         },
-        columnStyles: colStylesSeparado,
+        columnStyles,
         alternateRowStyles: {
           fillColor: [248, 250, 252]
         },
@@ -414,58 +447,23 @@ export async function gerarRelatorioPdfTombamentoDescricao({
     });
 
   // =========================================================================
-  // CENÁRIO 3: TODOS OS DEPARTAMENTOS REUNIDOS (ORDENADOS EM SEQUÊNCIA POR LOCAL E DEPARTAMENTO)
+  // CENÁRIO 3: TODOS OS DEPARTAMENTOS REUNIDOS
   // =========================================================================
   } else {
     const bensOrdenados = ordenarBensHierarquia(bensDaSecretaria);
 
-    const headCols = ['Item', 'Nº Tombamento', 'Descrição do Bem Patrimonial'];
-    if (deveExibirColunaLocal) headCols.push('Local / Unidade');
-    if (deveExibirColunaDepartamento) headCols.push('Departamento / Setor');
-    const headColumns = [headCols];
-
-    const rows = bensOrdenados.map((bem, idx) => {
-      const row = [
-        (idx + 1).toString(),
-        bem.numeroTombamento || bem.etiquetaNumero || '—',
-        bem.descricao ? bem.descricao.trim() : 'Sem descrição cadastrada'
-      ];
-      if (deveExibirColunaLocal) {
-        row.push(bem.local || bem.localizacaoExata || 'Sede / Geral');
-      }
-      if (deveExibirColunaDepartamento) {
-        row.push(bem.departamento || bem.localizacaoExata || 'Setor Geral');
-      }
-      return row;
-    });
-
-    const columnStyles: Record<number, any> =
-      deveExibirColunaLocal && deveExibirColunaDepartamento
-        ? {
-            0: { halign: 'center', cellWidth: 11, textColor: [100, 116, 139] },
-            1: { halign: 'center', cellWidth: 25, fontStyle: 'bold', textColor: [30, 58, 138] },
-            2: { halign: 'left' },
-            3: { halign: 'left', cellWidth: 38, textColor: [30, 58, 138], fontSize: 7.5 },
-            4: { halign: 'left', cellWidth: 32, textColor: [71, 85, 105], fontSize: 7.5 }
-          }
-        : deveExibirColunaLocal || deveExibirColunaDepartamento
-        ? {
-            0: { halign: 'center', cellWidth: 12, textColor: [100, 116, 139] },
-            1: { halign: 'center', cellWidth: 28, fontStyle: 'bold', textColor: [30, 58, 138] },
-            2: { halign: 'left' },
-            3: { halign: 'left', cellWidth: 46, textColor: [71, 85, 105], fontSize: 7.5 }
-          }
-        : {
-            0: { halign: 'center', cellWidth: 14, textColor: [100, 116, 139] },
-            1: { halign: 'center', cellWidth: 32, fontStyle: 'bold', textColor: [30, 58, 138] },
-            2: { halign: 'left' }
-          };
+    const { head, body, columnStyles } = montarEstruturaTabela(
+      bensOrdenados,
+      deveExibirColunaLocal,
+      deveExibirColunaDepartamento,
+      'Nenhum bem tombado registrado para os filtros selecionados'
+    );
 
     autoTable(doc, {
       startY,
       margin: { left: 14, right: 14, top: startY, bottom: 14 },
-      head: headColumns,
-      body: rows,
+      head,
+      body,
       theme: 'grid',
       styles: {
         font: 'helvetica',
@@ -479,9 +477,9 @@ export async function gerarRelatorioPdfTombamentoDescricao({
         fillColor: [15, 23, 42],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
-        fontSize: 8,
+        fontSize: 7.8,
         halign: 'left',
-        cellPadding: 2.5
+        cellPadding: 2.3
       },
       columnStyles,
       alternateRowStyles: {
@@ -494,29 +492,21 @@ export async function gerarRelatorioPdfTombamentoDescricao({
   }
 
   // =========================================================================
-  // 4. CORREÇÃO GLOBAL DA NUMERAÇÃO DE PÁGINAS NO RODAPÉ ("Página X de Y")
+  // 4. RODAPÉ OFICIAL COM EMISSOR, DATA/HORA E NUMERAÇÃO ("Página X de Y")
   // =========================================================================
   const totalPages = doc.getNumberOfPages();
+  const emissorStr = nomeEmissor ? ` • Emitido por: ${truncarTexto(nomeEmissor, 30)}` : '';
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.2);
+    doc.line(14, pageHeight - 10, pageWidth - 14, pageHeight - 10);
+
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(148, 163, 184);
+    doc.setFontSize(7.2);
+    doc.setTextColor(100, 116, 139);
 
-    const descLocalRodape = deveExibirColunaLocal
-      ? (listaLocais.length === 1
-          ? `${listaLocais[0]} • `
-          : listaLocais.length > 1
-          ? `${listaLocais.length} Locais • `
-          : '')
-      : '';
-    const descSetorRodape = listaDeptos.length === 1
-      ? `(${descLocalRodape}${listaDeptos[0]})`
-      : listaDeptos.length > 1
-      ? `(${descLocalRodape}${listaDeptos.length} Departamentos)`
-      : `(${descLocalRodape}Geral)`;
-
-    const textoRodape = `Prefeitura Municipal de Capanema • DPP • Relatório Oficial ${descSetorRodape} • Emissão em ${dataHoje}`;
+    const textoRodape = `Prefeitura de Capanema • DPP • Emissão: ${dataHoje} às ${horaEmissao}${emissorStr}`;
     doc.text(textoRodape, 14, pageHeight - 6);
 
     const paginaStr = `Página ${i} de ${totalPages}`;
@@ -524,7 +514,7 @@ export async function gerarRelatorioPdfTombamentoDescricao({
   }
 
   // =========================================================================
-  // 5. SALVAR O ARQUIVO PDF COM NOME TRATADO (SEM ACENTOS CORROMPIDOS)
+  // 5. SALVAR O ARQUIVO PDF COM NOME TRATADO
   // =========================================================================
   const secLimpa = (secretaria === 'Todas' ? 'Todas_Secretarias' : secretaria)
     .normalize('NFD')
