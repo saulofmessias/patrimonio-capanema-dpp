@@ -69,6 +69,93 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const VERIFIED_PROFILE_CACHE_KEY = 'capanema_verified_profile_v1';
 
+// Fallback de emergencia APENAS quando o Firestore esta fora do ar ou atingiu a cota diaria gratuita (Spark).
+// Armazena somente hashes SHA-256 (sem nenhum e-mail ou nome pessoal em texto claro no bundle).
+const OFFLINE_QUOTA_FALLBACK_HASHES: Record<
+  string,
+  { role: UserRole; secretaria: string; departamento: string }
+> = {
+  '2b548286ad1ee14614e972fa173e914bd1a01b70f8022c78243c5fc5c71d2586': {
+    role: 'admin',
+    secretaria: 'Todas',
+    departamento: 'Diretoria de Patrimônio Público (DPP)',
+  },
+  '54b3e66a5335fbe16d95a5fcb1cb4cd3c435ab8de35db2910655f15b9a36e029': {
+    role: 'admin',
+    secretaria: 'Todas',
+    departamento: 'Diretoria de Patrimônio Público (DPP)',
+  },
+  'dd5c0c76fe51b02ef57c68f9df818607827b8f9f3d9ffc6abd54689221cde48b': {
+    role: 'admin',
+    secretaria: 'Todas',
+    departamento: 'Diretoria de Patrimônio Público (DPP)',
+  },
+  'bc37cbae9bed3ebd9fac476048b11286c28a6df723391fba8df35877c6e2f84e': {
+    role: 'gerente',
+    secretaria: 'SECRETARIA DE ADMINISTRAÇÃO',
+    departamento: 'Diretoria de Patrimônio Público (DPP)',
+  },
+  'd25266c5c5231ece23db1ecd9eee9eddd1b2125dcd02bc6db4e5b21a52d830cc': {
+    role: 'gerente',
+    secretaria: 'SECRETARIA DE EDUCAÇÃO',
+    departamento: 'Setor de Patrimônio - Educação',
+  },
+  '6a075f4266adaf8010c0202fa54f2e1b0e50fb4302c8cd876f8037dca707e6ba': {
+    role: 'gerente',
+    secretaria: 'SECRETARIA DE EDUCAÇÃO',
+    departamento: 'Setor de Patrimônio - Educação',
+  },
+  '5be1fafd031b1cad2ed717bd0e8e465ddb0dbd1ddabb5cd24ac00b27f18e284c': {
+    role: 'gerente',
+    secretaria: 'SECRETARIA DE EDUCAÇÃO',
+    departamento: 'Setor de Patrimônio - Educação',
+  },
+  'a145ca22a70daa47cb373740ad71ca15be3c197e989e6596bb9648cf33772636': {
+    role: 'gerente',
+    secretaria: 'SECRETARIA DE SAÚDE',
+    departamento: 'Setor de Patrimônio - Saúde',
+  },
+  '1c6baad189fdca300366b359640e73533c9c5154c3aa0fec72126e1cd0ba7231': {
+    role: 'gerente',
+    secretaria: 'SECRETARIA DE SAÚDE',
+    departamento: 'Setor de Patrimônio - Saúde',
+  },
+};
+
+async function sha256Hex(input: string): Promise<string | null> {
+  try {
+    if (typeof crypto === 'undefined' || !crypto.subtle) return null;
+    const data = new TextEncoder().encode(input);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    return null;
+  }
+}
+
+async function resolveEmergencyQuotaFallback(
+  user: FirebaseUser,
+  emailLower: string
+): Promise<UserProfile | null> {
+  if (!user.emailVerified) return null;
+  const hash = await sha256Hex(emailLower);
+  if (!hash) return null;
+  const entry = OFFLINE_QUOTA_FALLBACK_HASHES[hash];
+  if (!entry) return null;
+  return {
+    uid: user.uid,
+    email: user.email || emailLower,
+    nome: user.displayName || (entry.role === 'admin' ? 'Administrador Geral DPP' : 'Gerente Setorial'),
+    role: entry.role,
+    secretaria: entry.secretaria,
+    departamento: entry.departamento,
+    fotoUrl: user.photoURL || undefined,
+    isSimulated: false,
+  };
+}
+
 function readCachedVerifiedProfile(uid: string, emailLower: string): UserProfile | null {
   if (typeof localStorage === 'undefined') return null;
   try {
@@ -357,6 +444,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (cachedProfile.role === 'admin') {
           refreshAuthorizedUsers();
         }
+        setIsLoading(false);
+        return;
+      }
+
+      // Se o Firestore estiver offline ou com cota diária esgotada e ainda não houver cache local,
+      // permite acesso de contingência para contas Google verificadas da DPP via hash SHA-256.
+      const emergencyProfile = await resolveEmergencyQuotaFallback(user, emailLower);
+      if (emergencyProfile) {
+        writeCachedVerifiedProfile(emergencyProfile);
+        setIsUnauthorized(false);
+        setUnauthorizedEmail(null);
+        setAuthCheckError(null);
+        setRealProfile(emergencyProfile);
+        setProfile(emergencyProfile);
         setIsLoading(false);
         return;
       }

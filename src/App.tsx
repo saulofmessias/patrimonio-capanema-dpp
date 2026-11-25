@@ -36,14 +36,11 @@ import { db, testConnection, handleFirestoreError, OperationType } from './servi
 import {
   collection,
   doc,
-  documentId,
   getDocs,
   limit,
   onSnapshot,
-  orderBy,
   query,
   setDoc,
-  startAfter,
   where,
 } from 'firebase/firestore';
 
@@ -209,55 +206,31 @@ function AppContent() {
 
     const syncInitialCloudDelta = async () => {
       try {
-        const lastSyncAt = localStorage.getItem(SYNC_KEY);
+        // Reaproveita cursor legado se existir; em dispositivo novo, busca apenas o delta
+        // recente (ultimos 30 dias, limitado a 500 docs) em vez de varrer todos os 6.688 bens,
+        // preservando a cota gratuita diaria de 50.000 leituras do Firestore Spark.
+        // (Carga completa continua disponivel sob demanda no modal "Nuvem Firebase".)
+        const storedCursor =
+          localStorage.getItem(SYNC_KEY) || localStorage.getItem('patrimonios_cloud_sync_at_v1');
+        const thirtyDaysAgoIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const deltaSince = storedCursor
+          ? subtractClockSkewBuffer(storedCursor)
+          : thirtyDaysAgoIso;
+
         const colRef = collection(db, 'patrimonios');
+        const snap = await getDocs(
+          query(colRef, where('atualizadoEm', '>', deltaSince), limit(500))
+        );
+        if (!isActive) return;
 
-        // Delta: somente o que mudou depois da ultima sincronizacao (com margem de 5 min
-        // para tolerar pequenas diferencas de relogio entre celulares).
-        // Consulta simples em um campo -> nao exige indice composto.
-        if (lastSyncAt) {
-          const deltaSince = subtractClockSkewBuffer(lastSyncAt);
-          const snap = await getDocs(query(colRef, where('atualizadoEm', '>', deltaSince)));
-          if (!isActive) return;
+        const baixados: PatrimonioRecord[] = [];
+        snap.forEach(d => {
+          const raw = d.data() as PatrimonioRecord;
+          baixados.push({ ...raw, id: raw.id || d.id });
+        });
 
-          const baixados: PatrimonioRecord[] = [];
-          snap.forEach(d => {
-            const raw = d.data() as PatrimonioRecord;
-            baixados.push({ ...raw, id: raw.id || d.id });
-          });
-
-          if (baixados.length > 0) {
-            handleMergeFromFirestore(baixados);
-          }
-        } else {
-          // Primeira sincronizacao do dispositivo: percorre a colecao em paginas
-          // de 400 documentos, ordenadas por id.
-          const PAGE_SIZE = 400;
-          const MAX_PAGINAS = 60;
-          let cursor: string | undefined = undefined;
-          let ultimaPagina: string | undefined;
-          let pagina = 0;
-
-          do {
-            const q = cursor
-              ? query(colRef, orderBy(documentId()), startAfter(cursor), limit(PAGE_SIZE))
-              : query(colRef, orderBy(documentId()), limit(PAGE_SIZE));
-            const snap = await getDocs(q);
-            if (!isActive) return;
-            if (snap.empty) break;
-
-            const baixados: PatrimonioRecord[] = [];
-            snap.forEach(d => {
-              const raw = d.data() as PatrimonioRecord;
-              baixados.push({ ...raw, id: raw.id || d.id });
-              ultimaPagina = d.id;
-            });
-            if (baixados.length > 0) {
-              handleMergeFromFirestore(baixados);
-            }
-            cursor = ultimaPagina;
-            pagina += 1;
-          } while (pagina < MAX_PAGINAS && ultimaPagina);
+        if (baixados.length > 0) {
+          handleMergeFromFirestore(baixados);
         }
 
         try {
@@ -310,7 +283,7 @@ function AppContent() {
     );
 
     const unsubTransferencias = onSnapshot(
-      query(collection(db, 'transferencias'), limit(300)),
+      query(collection(db, 'transferencias'), limit(100)),
       (snapshot) => {
         if (!isActive || snapshot.empty) return;
         const cloudTransf: TransferenciaRecord[] = [];
@@ -331,7 +304,7 @@ function AppContent() {
     );
 
     const unsubVistorias = onSnapshot(
-      query(collection(db, 'vistorias'), limit(300)),
+      query(collection(db, 'vistorias'), limit(100)),
       (snapshot) => {
         if (!isActive || snapshot.empty) return;
         const cloudVist: VistoriaRecord[] = [];
