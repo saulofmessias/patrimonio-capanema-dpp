@@ -12,7 +12,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ scannedBem, scannedCodigo }) => {
-  const { loginGoogle, logout, firebaseUser, isUnauthorized, unauthorizedEmail } = useAuth();
+  const { loginGoogle, logout, firebaseUser, isUnauthorized, unauthorizedEmail, authCheckError, retryAuthCheck } = useAuth();
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -129,7 +129,39 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ scannedBem, scannedCod
         {/* Corpo do Cartão: Estado de Não Autorizado OU Botão de Login */}
         <div className="py-5 space-y-4">
           
-          {isUnauthorized ? (
+          {authCheckError ? (
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 space-y-3 animate-fadeIn">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-xs font-bold text-amber-900">
+                    Falha Temporária na Verificação
+                  </h3>
+                  <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
+                    {authCheckError}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-amber-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="px-3 py-1.5 rounded-xl bg-white hover:bg-amber-100 text-amber-900 font-semibold text-xs border border-amber-300 transition-all cursor-pointer"
+                >
+                  Trocar conta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void retryAuthCheck()}
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Tentar novamente</span>
+                </button>
+              </div>
+            </div>
+          ) : isUnauthorized ? (
             <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 space-y-3 animate-fadeIn">
               <div className="flex items-start gap-2.5">
                 <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
