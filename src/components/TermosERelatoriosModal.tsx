@@ -1697,7 +1697,6 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
                     const itensExibidos = isPrintingAll ? listaBase : listaBase.slice(0, limitePreview);
                     const totalCols =
                       3 +
-                      (exibirColunaLocal ? 1 : 0) +
                       (exibirColunaDepartamento ? 1 : 0) +
                       (exibirColunaConservacao ? 1 : 0) +
                       (exibirColunaConferencia ? 1 : 0);
@@ -1719,9 +1718,6 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
                                 <th className="py-1.5 px-2 border-r border-slate-700 w-10 text-center">Item</th>
                                 <th className="py-1.5 px-2.5 border-r border-slate-700 w-24 text-center">Nº Tombo</th>
                                 <th className="py-1.5 px-3 border-r border-slate-700">Descrição do Bem Patrimonial</th>
-                                {exibirColunaLocal && (
-                                  <th className="py-1.5 px-2.5 border-r border-slate-700 w-40">Local / Unidade</th>
-                                )}
                                 {exibirColunaDepartamento && (
                                   <th className="py-1.5 px-2.5 border-r border-slate-700 w-36">Departamento / Setor</th>
                                 )}
@@ -1752,11 +1748,6 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
                                     <td className="py-1 px-3 border-r border-slate-200 font-sans text-slate-800">
                                       {bem.descricao}
                                     </td>
-                                    {exibirColunaLocal && (
-                                      <td className="py-1 px-2.5 border-r border-slate-200 font-sans text-blue-950 font-medium text-[9.5px]">
-                                        {bem.local || bem.localizacaoExata || 'Sede / Geral'}
-                                      </td>
-                                    )}
                                     {exibirColunaDepartamento && (
                                       <td className="py-1 px-2.5 border-r border-slate-200 font-sans text-slate-600 text-[9.5px]">
                                         {bem.departamento || bem.localizacaoExata || 'Setor Geral'}

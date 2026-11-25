@@ -351,7 +351,7 @@ export async function gerarRelatorioPdfTombamentoDescricao({
 
     const { head, body, columnStyles } = montarEstruturaTabela(
       bensOrdenados,
-      deveExibirColunaLocal,
+      false,
       deveExibirColunaDepartamento,
       'Nenhum bem tombado registrado para os departamentos selecionados'
     );
@@ -409,7 +409,7 @@ export async function gerarRelatorioPdfTombamentoDescricao({
 
       const { head, body, columnStyles } = montarEstruturaTabela(
         bensDoDepto,
-        deveExibirColunaLocal,
+        false,
         false,
         'Nenhum bem tombado registrado para este departamento'
       );
@@ -454,7 +454,7 @@ export async function gerarRelatorioPdfTombamentoDescricao({
 
     const { head, body, columnStyles } = montarEstruturaTabela(
       bensOrdenados,
-      deveExibirColunaLocal,
+      false,
       deveExibirColunaDepartamento,
       'Nenhum bem tombado registrado para os filtros selecionados'
     );
