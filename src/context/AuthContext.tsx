@@ -155,6 +155,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               fotoUrl: user.photoURL || undefined,
               isSimulated: false
             };
+          } else {
+            // Auto-recuperacao segura validada EXCLUSIVAMENTE pelo servidor (firestore.rules):
+            // Se o e-mail pertencer a um Administrador Bootstrap nas regras do Firestore,
+            // o servidor permite criar o proprio registro em authorized_users; para qualquer
+            // outro usuario, o Firestore rejeita com PERMISSION_DENIED e o acesso segue bloqueado.
+            // Assim, nenhum e-mail pessoal fica exposto no bundle JS do navegador.
+            try {
+              const nowIso = new Date().toISOString();
+              const adminNome = user.displayName || 'Administrador Geral DPP';
+              await setDoc(doc(db, 'authorized_users', emailLower), {
+                email: emailLower,
+                nome: adminNome,
+                role: 'admin',
+                secretaria: 'Todas',
+                departamento: 'Diretoria de Patrimônio Público (DPP)',
+                ativo: true,
+                criadoPor: emailLower,
+                criadoEm: nowIso,
+                atualizadoEm: nowIso,
+              });
+              resolvedProfile = {
+                uid: user.uid,
+                email: user.email,
+                nome: adminNome,
+                role: 'admin',
+                secretaria: 'Todas',
+                departamento: 'Diretoria de Patrimônio Público (DPP)',
+                fotoUrl: user.photoURL || undefined,
+                isSimulated: false,
+              };
+            } catch {
+              // Nao autorizado no servidor -> segue para tela de Acesso Pendente
+            }
           }
         } catch (e) {
           console.warn('Erro ao verificar authorized_users:', e);

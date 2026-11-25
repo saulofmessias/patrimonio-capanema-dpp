@@ -47,28 +47,41 @@ service cloud.firestore {
       return /databases/$(database)/documents/authorized_users/$(authEmail());
     }
 
+    // Rede de seguranca APENAS no servidor (nunca vai para o navegador):
+    // garante que os administradores da DPP nunca fiquem trancados fora do sistema
+    // mesmo que a colecao authorized_users ainda nao tenha o documento criado.
+    function isBootstrapAdmin() {
+      return isVerified() && authEmail() in [
+        'saulofmessias@gmail.com',
+        'elielmarques40@gmail.com',
+        'elieldasilvamarques@gmail.com'
+      ];
+    }
+
     // Conta desativada pelo administrador -> perde todos os poderes.
     function isRevoked() {
-      return exists(authPath()) && get(authPath()).data.get('ativo', true) == false;
+      return !isBootstrapAdmin() && exists(authPath()) && get(authPath()).data.get('ativo', true) == false;
     }
 
     // PAPEL EFETIVO do servidor.
-    // Fonte unica de verdade = authorized_users (mantido APENAS pelo administrador).
+    // Fonte de verdade = authorized_users (mantido APENAS pelo administrador).
     // O documento /users/{uid} e um espelho e NAO e consultado aqui: como o
     // proprio servidor escreve nele, ele nao pode ser usado como base de
     // decisao de permissao (seria um caminho trivial de auto-promocao).
     function effectiveRole() {
-      return isRevoked()
-        ? null
-        : (exists(authPath()) ? get(authPath()).data.get('role', null) : null);
+      return isBootstrapAdmin()
+        ? 'admin'
+        : (isRevoked()
+            ? null
+            : (exists(authPath()) ? get(authPath()).data.get('role', null) : null));
     }
 
     function isAdmin() {
-      return isVerified() && effectiveRole() == 'admin';
+      return isBootstrapAdmin() || (isVerified() && effectiveRole() == 'admin');
     }
 
     function isGerente() {
-      return isVerified() && effectiveRole() in ['admin', 'gerente'];
+      return isBootstrapAdmin() || (isVerified() && effectiveRole() in ['admin', 'gerente']);
     }
 
     function isVistoriador() {
@@ -77,19 +90,19 @@ service cloud.firestore {
 
     // Perfis operacionais com permissao de registrar vistorias e auditoria (exclui 'leitor').
     function podeRegistrarVistoria() {
-      return isVerified() && effectiveRole() in ['admin', 'gerente', 'vistoriador'];
+      return isBootstrapAdmin() || (isVerified() && effectiveRole() in ['admin', 'gerente', 'vistoriador']);
     }
 
     // Qualquer servidor oficialmente autorizado (admin, gerente, vistoriador, leitor).
     function isAutorizado() {
-      return isVerified() && effectiveRole() != null;
+      return isBootstrapAdmin() || (isVerified() && effectiveRole() != null);
     }
 
     // Secretaria de lotacao do servidor (cadastrada em authorized_users).
     function secretariaServidor() {
-      return exists(authPath())
-        ? get(authPath()).data.get('secretaria', '')
-        : '';
+      return isBootstrapAdmin()
+        ? 'Todas'
+        : (exists(authPath()) ? get(authPath()).data.get('secretaria', '') : '');
     }
 
     // Reconhece as duas grafias historicas da Secretaria de Assistencia Social.
