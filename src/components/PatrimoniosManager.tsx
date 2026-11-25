@@ -659,13 +659,14 @@ export const PatrimoniosManager: React.FC<Props> = ({
 
       {/* Main Container with Sub-navigation and Controls */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3 sm:p-5 space-y-4 w-full max-w-full overflow-hidden">
-        {/* Top bar with module tabs & New Asset button */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 w-full max-w-full">
-          <div className="w-full sm:w-auto overflow-x-auto scrollbar-none pb-1 sm:pb-0">
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl w-max sm:w-auto">
+        {/* Top bar with module tabs & single-row action toolbar */}
+        <div className="flex flex-col gap-3 pb-3 border-b border-slate-100 w-full max-w-full">
+          {/* Linha 1: Abas do módulo (todas visíveis sem corte) */}
+          <div className="w-full overflow-x-auto scrollbar-none">
+            <div className="inline-flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl w-max">
               <button
                 onClick={() => setActiveSubTab('bens')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                   activeSubTab === 'bens'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -675,7 +676,7 @@ export const PatrimoniosManager: React.FC<Props> = ({
               </button>
               <button
                 onClick={() => setActiveSubTab('transferencias')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                   activeSubTab === 'transferencias'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -685,7 +686,7 @@ export const PatrimoniosManager: React.FC<Props> = ({
               </button>
               <button
                 onClick={() => setActiveSubTab('vistorias')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                   activeSubTab === 'vistorias'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -695,7 +696,7 @@ export const PatrimoniosManager: React.FC<Props> = ({
               </button>
               <button
                 onClick={() => setActiveSubTab('localizacoes')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                   activeSubTab === 'localizacoes'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -706,46 +707,31 @@ export const PatrimoniosManager: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="w-full sm:w-auto overflow-x-auto scrollbar-none pb-1 sm:pb-0">
-            <div className="flex items-center sm:flex-wrap gap-2 w-max sm:w-auto">
-              {/* Passo 3: Vistoria em Campo com Câmera e QR Code */}
+          {/* Linha 2: Menu de ações em linha única com "Novo Bem" em primeiro */}
+          <div className="w-full overflow-x-auto scrollbar-none">
+            <div className="flex flex-nowrap items-center gap-2 w-max">
+              {/* 1. Cadastrar Novo Bem (em primeiro — Admin e Gerentes) */}
+              {canCreatePatrimonio && (
+                <button
+                  onClick={() => setShowNewPatrimonioModal(true)}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 shrink-0" />
+                  <span>Novo Bem</span>
+                </button>
+              )}
+
+              {/* 2. Vistoria em Campo com Câmera e QR Code */}
               <button
                 onClick={() => setShowScannerModal(true)}
-                className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all shrink-0"
-                title="Passo 3: Auditoria em campo com câmera do celular para leitura de QR Code"
+                className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all whitespace-nowrap shrink-0 cursor-pointer"
+                title="Auditoria em campo com câmera do celular para leitura de QR Code"
               >
-                <Camera className="w-4 h-4 text-emerald-200" />
+                <Camera className="w-4 h-4 text-emerald-200 shrink-0" />
                 <span>Vistoria / Scanner</span>
               </button>
 
-              {/* Acesso no Celular / PWA dos Fiscais de Campo */}
-              <div className="shrink-0">
-                <PWAInstallButton />
-              </div>
-
-            {/* Passo 4: Termos Oficiais e Relatórios TCM */}
-            <button
-              onClick={() => setShowTermosERelatoriosModal(true)}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-slate-300 transition-all"
-              title="Passo 4: Emissão de Termos de Responsabilidade, Cautela e Relatórios TCM/TCE"
-            >
-              <FileText className="w-4 h-4 text-blue-600" />
-              <span className="hidden sm:inline">Termos &</span> Relatórios
-            </button>
-
-            {/* Passo 2: Sincronização e Carga em Nuvem no Firebase (Apenas Admin DPP) */}
-            {isAdmin && (
-              <button
-                onClick={() => setShowSyncCenterModal(true)}
-                className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-                title="Carga em lote e sincronização com o banco de dados na nuvem"
-              >
-                <Cloud className="w-4 h-4 text-indigo-600" />
-                <span>Nuvem Firebase</span>
-              </button>
-            )}
-
-              {/* Passo 1: Impressão de Etiquetas 5 × 3,5 cm */}
+              {/* 3. Impressão de Etiquetas 5 × 3,5 cm */}
               <button
                 onClick={() => {
                   if (selectedBensIds.length > 0) {
@@ -756,10 +742,10 @@ export const PatrimoniosManager: React.FC<Props> = ({
                   }
                   setShowEtiquetasModal(true);
                 }}
-                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all border border-slate-700"
+                className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all border border-slate-700 whitespace-nowrap shrink-0 cursor-pointer"
                 title="Gerador de Etiquetas Oficiais Capanema 5 × 3,5 cm (Térmica e A4)"
               >
-                <Printer className="w-4 h-4 text-emerald-400" />
+                <Printer className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>Etiquetas 5×3,5</span>
                 {selectedBensIds.length > 0 && (
                   <span className="bg-emerald-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono">
@@ -768,28 +754,44 @@ export const PatrimoniosManager: React.FC<Props> = ({
                 )}
               </button>
 
-              {/* Fotos do AppSheet: 4.525 fotos mapeadas (Apenas Admin DPP) */}
+              {/* 4. Termos Oficiais e Relatórios TCM */}
+              <button
+                onClick={() => setShowTermosERelatoriosModal(true)}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-slate-300 transition-all whitespace-nowrap shrink-0 cursor-pointer"
+                title="Emissão de Termos de Responsabilidade, Cautela e Relatórios TCM/TCE"
+              >
+                <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>Termos & Relatórios</span>
+              </button>
+
+              {/* 5. Fotos do AppSheet (Apenas Admin DPP) */}
               {isAdmin && (
                 <button
                   onClick={() => setShowPhotoSyncModal(true)}
-                  className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs"
+                  className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs whitespace-nowrap shrink-0 cursor-pointer"
                   title="Vincular e importar fotos do acervo AppSheet (Patrimonios_Images)"
                 >
-                  <ImageIcon className="w-4 h-4 text-amber-600" />
+                  <ImageIcon className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>Fotos AppSheet ({bensComFotoCount})</span>
                 </button>
               )}
 
-            {/* Cadastrar Novo Bem (Admin e Gerentes) */}
-            {canCreatePatrimonio && (
-              <button
-                onClick={() => setShowNewPatrimonioModal(true)}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Novo Bem</span>
-              </button>
-            )}
+              {/* 6. Sincronização e Carga em Nuvem no Firebase (Apenas Admin DPP) */}
+              {isAdmin && (
+                <button
+                  onClick={() => setShowSyncCenterModal(true)}
+                  className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 cursor-pointer"
+                  title="Carga em lote e sincronização com o banco de dados na nuvem"
+                >
+                  <Cloud className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>Nuvem Firebase</span>
+                </button>
+              )}
+
+              {/* 7. Acesso no Celular / PWA dos Fiscais de Campo */}
+              <div className="shrink-0">
+                <PWAInstallButton />
+              </div>
             </div>
           </div>
         </div>
