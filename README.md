@@ -2,9 +2,9 @@
   <img width="1200" height="475" alt="Banner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
 </div>
 
-# Patrimônio Público — Capanema / PR
+# Patrimônio Público — Capanema / PA
 
-Aplicação web para gestão patrimonial do município de Capanema (PR), com
+Aplicação web para gestão patrimonial do município de Capanema (PA), com
 cerca de **6.700 bens** catalogados, geração de etiquetas com QR Code,
 termos de transferência, relatórios PDF em lote e modo offline.
 
@@ -94,4 +94,4 @@ src/
 
 ## Licença
 
-Uso interno da Prefeitura Municipal de Capanema — PR.
+Uso interno da Prefeitura Municipal de Capanema — PA.

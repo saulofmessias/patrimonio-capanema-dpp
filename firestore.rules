@@ -18,7 +18,15 @@ service cloud.firestore {
     }
 
     function isVerified() {
-      return isAuthenticated() && request.auth.token.email_verified == true;
+      // Google OAuth sempre marca email_verified == true.
+      // No GitHub OAuth (provider alternativo), o token do Firebase pode vir sem
+      // email_verified == true mesmo com e-mail verificado no GitHub; o acesso
+      // continua restrito exclusivamente aos e-mails previamente autorizados em
+      // authorized_users / bootstrap.
+      return isAuthenticated() && (
+        request.auth.token.get('email_verified', false) == true
+        || request.auth.token.get('firebase', {}).get('sign_in_provider', '') == 'github.com'
+      );
     }
 
     function isValidId(id) {
@@ -40,8 +48,7 @@ service cloud.firestore {
     }
 
     // Administradores "de codigo" (Diretoria de Patrimônio Publico).
-    // Funcao pura: nao consulta o Firestore, para nao gerar recursao
-    // quando avaliada dentro das proprias regras de authorized_users.
+    // Funcao pura: nao consulta o Firestore (economiza leituras de regra).
     // ATENCAO: manter em sincronia com SUPER_ADMIN_EMAILS (src/context/AuthContext.tsx).
     function isSuperAdmin() {
       return isVerified() && authEmail() in [
@@ -54,6 +61,7 @@ service cloud.firestore {
     // Contas institucionais cadastradas no codigo do app.
     // Sao o "bootstrap" do RBAC: sem documento em authorized_users elas
     // continuam operando, para nao travar a operacao da DPP.
+    // Usa .get(chave, default) para evitar KeyError quando o e-mail nao esta no mapa.
     // ATENCAO: manter em sincronia com BUILTIN_REAL_ACCOUNTS (src/context/AuthContext.tsx).
     function builtinRole() {
       return {
@@ -66,7 +74,7 @@ service cloud.firestore {
         'antonyematheusdomine@gmail.com': 'gerente',
         'nascimentoadalberto53@gmail.com': 'gerente',
         'engpescadaniel@gmail.com': 'gerente'
-      }[authEmail()];
+      }.get(authEmail(), null);
     }
 
     function builtinSecretaria() {
@@ -80,42 +88,52 @@ service cloud.firestore {
         'antonyematheusdomine@gmail.com': 'SECRETARIA DE EDUCAÇÃO',
         'nascimentoadalberto53@gmail.com': 'SECRETARIA DE SAÚDE',
         'engpescadaniel@gmail.com': 'SECRETARIA DE SAÚDE'
-      }[authEmail()];
+      }.get(authEmail(), '');
     }
 
     // Conta desativada pelo administrador -> perde todos os poderes.
     function isRevoked() {
-      return exists(authPath()) && get(authPath()).data.ativo == false;
+      return exists(authPath()) && get(authPath()).data.get('ativo', true) == false;
     }
 
     // PAPEL EFETIVO do servidor.
     // Fonte de verdade = authorized_users (mantido APENAS pelo administrador).
     // O documento /users/{uid} e um espelho e NAO e consultado aqui: como o
     // proprio servidor escreve nele, ele nao pode ser usado como base de
-    // decisao de permissao (seria um caminho trivial de auto-promoção).
+    // decisao de permissao (seria um caminho trivial de auto-promocao).
     function effectiveRole() {
-      if (isRevoked()) { return null; }
-      if (exists(authPath())) { return get(authPath()).data.role; }
-      return builtinRole();
+      return isRevoked()
+        ? null
+        : (exists(authPath()) ? get(authPath()).data.get('role', null) : builtinRole());
     }
 
     function isAdmin() {
-      return isVerified() && effectiveRole() == 'admin';
+      return isSuperAdmin() || (isVerified() && effectiveRole() == 'admin');
     }
 
     function isGerente() {
-      return isVerified() && effectiveRole() in ['admin', 'gerente'];
+      return isSuperAdmin() || (isVerified() && effectiveRole() in ['admin', 'gerente']);
+    }
+
+    function isVistoriador() {
+      return isVerified() && effectiveRole() == 'vistoriador';
+    }
+
+    // Perfis operacionais com permissao de registrar vistorias e auditoria (exclui 'leitor').
+    function podeRegistrarVistoria() {
+      return isSuperAdmin() || (isVerified() && effectiveRole() in ['admin', 'gerente', 'vistoriador']);
     }
 
     // Qualquer servidor oficialmente autorizado (admin, gerente, vistoriador, leitor).
     function isAutorizado() {
-      return isVerified() && effectiveRole() != null;
+      return isSuperAdmin() || (isVerified() && effectiveRole() != null);
     }
 
-    // Secretaria de lotacao do servidor (autorizada ou institutional).
+    // Secretaria de lotacao do servidor (autorizada ou institucional).
     function secretariaServidor() {
-      if (exists(authPath())) { return get(authPath()).data.secretaria; }
-      return builtinSecretaria();
+      return exists(authPath())
+        ? get(authPath()).data.get('secretaria', '')
+        : builtinSecretaria();
     }
 
     // Reconhece as duas grafias historicas da Secretaria de Assistencia Social.
@@ -125,12 +143,15 @@ service cloud.firestore {
         || (a == 'SECRETARIA DE ASSISTÊNCIA SOCIAL' && b == 'SECRETARIA DE ASSITENCIA SOCIAL');
     }
 
+    // Verifica se o servidor (gerente ou vistoriador) tem escopo sobre a secretaria alvo.
+    function pertenceASecretaria(alvo) {
+      return secretariaServidor() == 'Todas'
+        || secretariasEquivalentes(secretariaServidor(), alvo);
+    }
+
     // Gerente so mexe nos bens da propria secretaria (admin mexe em todas).
     function podeOperarNaSecretaria(alvo) {
-      return isGerente() && (
-        secretariaServidor() == 'Todas'
-        || secretariasEquivalentes(secretariaServidor(), alvo)
-      );
+      return isGerente() && pertenceASecretaria(alvo);
     }
 
     function isValidPatrimonioFoto(data) {
@@ -169,7 +190,7 @@ service cloud.firestore {
     // SERVIDORES AUTORIZADOS DA PREFEITURA
     // ==================================================================
     match /authorized_users/{emailKey} {
-      allow get: if isAuthenticated() && (authEmail() == emailKey.lower() || isSuperAdmin());
+      allow get: if isAuthenticated() && (authEmail() == emailKey.lower() || isAdmin());
       allow list: if isAdmin();
       allow write: if isAdmin();
     }
@@ -179,11 +200,24 @@ service cloud.firestore {
     // ==================================================================
     match /patrimonios/{patrimonioId} {
       allow read: if isAutorizado();
-      allow create: if isGerente() && podeOperarNaSecretaria(request.resource.data.secretariaSetor);
-      // Nao permite remanejar o bem para outra secretaria, nem editar bens de terceiros.
-      allow update: if isGerente()
-        && podeOperarNaSecretaria(resource.data.secretariaSetor)
-        && request.resource.data.secretariaSetor == resource.data.secretariaSetor;
+      allow create: if isAdmin()
+        || (isGerente() && podeOperarNaSecretaria(request.resource.data.secretariaSetor));
+      // Admin pode atualizar qualquer campo (inclusive transferir de secretaria).
+      // Gerente so edita bens da propria secretaria e nao pode remanejar para outra.
+      // Vistoriador pode atualizar apenas campos de vistoria de bens da sua secretaria.
+      allow update: if isAdmin()
+        || (
+          isGerente()
+          && podeOperarNaSecretaria(resource.data.secretariaSetor)
+          && request.resource.data.secretariaSetor == resource.data.secretariaSetor
+        )
+        || (
+          isVistoriador()
+          && pertenceASecretaria(resource.data.secretariaSetor)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+            ['estadoConservacao', 'local', 'localizacaoExata', 'fotoBem', 'atualizadoEm', 'dataUltimaVistoria']
+          )
+        );
       allow delete: if isAdmin();
     }
 
@@ -193,7 +227,7 @@ service cloud.firestore {
     match /patrimonio_fotos/{fotoId} {
       allow get: if isAutorizado() && isValidId(fotoId);
       allow list: if isAdmin();
-      allow create, update: if isGerente() && isValidId(fotoId) && isValidPatrimonioFoto(request.resource.data);
+      allow create, update: if podeRegistrarVistoria() && isValidId(fotoId) && isValidPatrimonioFoto(request.resource.data);
       allow delete: if isAdmin() && isValidId(fotoId);
     }
 
@@ -218,7 +252,7 @@ service cloud.firestore {
     // ==================================================================
     match /vistorias/{vistoriaId} {
       allow read: if isAutorizado();
-      allow create, update: if isAutorizado();
+      allow create, update: if podeRegistrarVistoria();
       allow delete: if isAdmin();
     }
 
@@ -227,7 +261,7 @@ service cloud.firestore {
     // ==================================================================
     match /auditLogs/{logId} {
       allow read: if isAutorizado();
-      allow create: if isAutorizado();
+      allow create: if podeRegistrarVistoria();
       allow update, delete: if false; // Imutabilidade de auditoria
     }
   }

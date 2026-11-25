@@ -12,8 +12,6 @@ import { compressImageFile } from '../utils/photoStorage';
 import { fetchAndCacheCloudPhoto } from '../utils/cloudPhotoSync';
 import { GERENTES_LIST } from './AppSheetPatrimonioForm';
 import { useAuth } from '../context/AuthContext';
-import { db, handleFirestoreError, OperationType } from '../services/firebase';
-import { doc, setDoc } from 'firebase/firestore';
 
 interface Props {
   isOpen: boolean;
@@ -407,10 +405,10 @@ export const VistoriaScannerModal: React.FC<Props> = ({
       fotoVistoria: fotoVistoriaBase64 || undefined
     };
 
-    // 1. Atualizar registro local de vistoria
+    // 1. Persistir vistoria via serializador unico (Firestore online ou fila offline)
     onAddVistoria(novaVistoria);
 
-    // 2. Atualizar o patrimônio com novo estado, data e opcionalmente a nova foto
+    // 2. Atualizar o patrimônio com novo estado, localização e opcionalmente a nova foto
     const nowIso = new Date().toISOString();
     const shouldUpdateMainPhoto = Boolean(atualizarFotoPrincipal && fotoVistoriaBase64);
     const bemAtualizado: PatrimonioRecord = {
@@ -422,27 +420,6 @@ export const VistoriaScannerModal: React.FC<Props> = ({
       atualizadoEm: nowIso
     };
     onUpdatePatrimonio(bemAtualizado);
-
-    // 3. Persistir no Firestore
-    try {
-      await setDoc(doc(db, 'vistorias', vistoriaId), novaVistoria);
-      const patrimonioPatch: Record<string, unknown> = {
-        estadoConservacao: estadoConservacao,
-        local: novaLocalizacao.trim() || scannedBem.local || '',
-        localizacaoExata: novaLocalizacao.trim() || scannedBem.localizacaoExata || '',
-        dataUltimaVistoria: dataHoje,
-        atualizadoEm: nowIso
-      };
-      if (shouldUpdateMainPhoto && fotoVistoriaBase64) {
-        patrimonioPatch.fotoBem = fotoVistoriaBase64;
-      }
-      await setDoc(doc(db, 'patrimonios', scannedBem.id), patrimonioPatch, { merge: true });
-    } catch (err) {
-      console.warn('Erro ao sincronizar vistoria com Firestore (salvo offline):', err);
-      try {
-        handleFirestoreError(err, OperationType.WRITE, `vistorias/${vistoriaId}`);
-      } catch {}
-    }
 
     setIsSaving(false);
     setSaveSuccess(true);

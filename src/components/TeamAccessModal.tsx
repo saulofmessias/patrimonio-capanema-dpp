@@ -93,7 +93,7 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
   const officialAppUrl =
     typeof window !== 'undefined' && window.location.origin
       ? window.location.origin.replace('ais-dev-', 'ais-pre-')
-      : 'https://ais-pre-ixkjnjnipiyqi3inxvjinj-853611457601.us-east1.run.app';
+      : 'https://studio-9788369134-200bd.web.app';
 
   const copyWhatsAppInvite = async (user?: AuthorizedUserRecord) => {
     const roleLabel = user ? (ROLE_LABELS[user.role]?.label || 'Gerente Setorial') : 'Fiscal / Gerente de Patrimônio';

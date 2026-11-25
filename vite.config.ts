@@ -2,7 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
@@ -11,9 +11,12 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
+        // Os icones e assets em public/ ja sao cobertos pelo globPatterns abaixo;
+        // evitar includeAssets redundante impede entradas duplicadas no precache do sw.js.
+        includeAssets: [],
         manifest: {
           id: '/',
+          lang: 'pt-BR',
           name: 'Patrimônios Capanema - DPP',
           short_name: 'Patrimônio',
           description: 'Sistema Oficial de Gestão e Tombamento Patrimonial do Município de Capanema.',
@@ -67,6 +70,25 @@ export default defineConfig(() => {
         },
       }),
     ],
+    build: {
+      // Garante que builds antigos nao fiquem acumulados em dist/ nem no precache do SW.
+      emptyOutDir: true,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) {
+              return 'vendor-firebase';
+            }
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('node_modules/lucide-react')) {
+              return 'vendor-icons';
+            }
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname || __dirname, '.'),

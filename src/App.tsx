@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { 
   TableDefinition, ActionDefinition, BotDefinition, MigrationStep, AuditLogEntry,
   PatrimonioRecord, TransferenciaRecord, VistoriaRecord
@@ -14,16 +14,36 @@ import {
   INITIAL_VISTORIAS
 } from './data/sampleAppsheetSchema';
 import { PatrimoniosManager } from './components/PatrimoniosManager';
-import { AppSheetAuditReport } from './components/AppSheetAuditReport';
-import { DiagnosticChecklist } from './components/DiagnosticChecklist';
-import { MigrationDashboard } from './components/MigrationDashboard';
-import { SchemaManager } from './components/SchemaManager';
-import { FormulaConverter } from './components/FormulaConverter';
-import { AutomationMapper } from './components/AutomationMapper';
-import { ArchitectureAdvisor } from './components/ArchitectureAdvisor';
-import { DataImporterModal } from './components/DataImporterModal';
-import { MigrationAuditLog } from './components/MigrationAuditLog';
 import { PWAInstallButton } from './components/PWAInstallButton';
+
+// Módulos técnicos de migração/diagnóstico (apenas administradores): carregados sob demanda
+const AppSheetAuditReport = lazy(() =>
+  import('./components/AppSheetAuditReport').then(m => ({ default: m.AppSheetAuditReport }))
+);
+const DiagnosticChecklist = lazy(() =>
+  import('./components/DiagnosticChecklist').then(m => ({ default: m.DiagnosticChecklist }))
+);
+const MigrationDashboard = lazy(() =>
+  import('./components/MigrationDashboard').then(m => ({ default: m.MigrationDashboard }))
+);
+const SchemaManager = lazy(() =>
+  import('./components/SchemaManager').then(m => ({ default: m.SchemaManager }))
+);
+const FormulaConverter = lazy(() =>
+  import('./components/FormulaConverter').then(m => ({ default: m.FormulaConverter }))
+);
+const AutomationMapper = lazy(() =>
+  import('./components/AutomationMapper').then(m => ({ default: m.AutomationMapper }))
+);
+const ArchitectureAdvisor = lazy(() =>
+  import('./components/ArchitectureAdvisor').then(m => ({ default: m.ArchitectureAdvisor }))
+);
+const DataImporterModal = lazy(() =>
+  import('./components/DataImporterModal').then(m => ({ default: m.DataImporterModal }))
+);
+const MigrationAuditLog = lazy(() =>
+  import('./components/MigrationAuditLog').then(m => ({ default: m.MigrationAuditLog }))
+);
 import { SyncStatusBadge } from './components/SyncStatusBadge';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { addPendingItem } from './utils/offlineSyncManager';
@@ -790,10 +810,6 @@ ${auditLogs.map(l => `- [${l.timestamp}] **${l.title}** (${l.category} - ${l.sev
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-4 sm:py-8 flex-1 w-full max-w-full overflow-x-hidden">
-        {activeTab === 'analise' && (
-          <AppSheetAuditReport onNavigateToTab={(tab) => setActiveTab(tab as any)} />
-        )}
-
         {activeTab === 'patrimonios' && (
           <PatrimoniosManager
             patrimonios={patrimonios}
@@ -809,67 +825,84 @@ ${auditLogs.map(l => `- [${l.timestamp}] **${l.title}** (${l.category} - ${l.sev
           />
         )}
 
-        {activeTab === 'checklist' && (
-          <div className="space-y-6">
-            <MigrationDashboard
-              steps={steps}
-              tables={tables}
-              actions={actions}
-              bots={bots}
-              selectedArchitecture={selectedArchitecture}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
-            <DiagnosticChecklist
-              steps={steps}
-              onToggleChecklist={handleToggleChecklist}
-              onOpenSchemaTab={() => setActiveTab('schema')}
-              onOpenArchitectureTab={() => setActiveTab('architecture')}
-            />
-          </div>
-        )}
+        {activeTab !== 'patrimonios' && (
+          <Suspense
+            fallback={
+              <div className="py-16 flex items-center justify-center gap-2 text-sm text-slate-500">
+                <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" />
+                <span>Carregando módulo técnico...</span>
+              </div>
+            }
+          >
+            {activeTab === 'analise' && (
+              <AppSheetAuditReport onNavigateToTab={(tab) => setActiveTab(tab as any)} />
+            )}
 
-        {activeTab === 'schema' && (
-          <SchemaManager
-            tables={tables}
-            onUpdateTables={setTables}
-            onLoadSample={handleLoadSample}
-          />
-        )}
+            {activeTab === 'checklist' && (
+              <div className="space-y-6">
+                <MigrationDashboard
+                  steps={steps}
+                  tables={tables}
+                  actions={actions}
+                  bots={bots}
+                  selectedArchitecture={selectedArchitecture}
+                  onNavigateTab={(tab) => setActiveTab(tab)}
+                />
+                <DiagnosticChecklist
+                  steps={steps}
+                  onToggleChecklist={handleToggleChecklist}
+                  onOpenSchemaTab={() => setActiveTab('schema')}
+                  onOpenArchitectureTab={() => setActiveTab('architecture')}
+                />
+              </div>
+            )}
 
-        {activeTab === 'formulas' && (
-          <FormulaConverter />
-        )}
+            {activeTab === 'schema' && (
+              <SchemaManager
+                tables={tables}
+                onUpdateTables={setTables}
+                onLoadSample={handleLoadSample}
+              />
+            )}
 
-        {activeTab === 'automations' && (
-          <AutomationMapper
-            actions={actions}
-            bots={bots}
-            onUpdateActions={setActions}
-            onUpdateBots={setBots}
-          />
-        )}
+            {activeTab === 'formulas' && (
+              <FormulaConverter />
+            )}
 
-        {activeTab === 'architecture' && (
-          <ArchitectureAdvisor
-            selectedArchitecture={selectedArchitecture}
-            onSelectArchitecture={setSelectedArchitecture}
-          />
-        )}
+            {activeTab === 'automations' && (
+              <AutomationMapper
+                actions={actions}
+                bots={bots}
+                onUpdateActions={setActions}
+                onUpdateBots={setBots}
+              />
+            )}
 
-        {activeTab === 'audit' && (
-          <MigrationAuditLog
-            logs={auditLogs}
-            onAddLog={handleAddAuditLog}
-          />
+            {activeTab === 'architecture' && (
+              <ArchitectureAdvisor
+                selectedArchitecture={selectedArchitecture}
+                onSelectArchitecture={setSelectedArchitecture}
+              />
+            )}
+
+            {activeTab === 'audit' && (
+              <MigrationAuditLog
+                logs={auditLogs}
+                onAddLog={handleAddAuditLog}
+              />
+            )}
+          </Suspense>
         )}
       </main>
 
       {/* Modal Importador de Dados */}
       {showDataImporter && (
-        <DataImporterModal
-          tables={tables}
-          onClose={() => setShowDataImporter(false)}
-        />
+        <Suspense fallback={null}>
+          <DataImporterModal
+            tables={tables}
+            onClose={() => setShowDataImporter(false)}
+          />
+        </Suspense>
       )}
 
       {/* Footer */}
