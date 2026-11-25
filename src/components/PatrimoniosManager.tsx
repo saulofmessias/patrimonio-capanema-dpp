@@ -29,6 +29,7 @@ interface Props {
   vistorias: VistoriaRecord[];
   onAddPatrimonio: (p: PatrimonioRecord) => void;
   onUpdatePatrimonio: (p: PatrimonioRecord) => void;
+  onDeletePatrimonio?: (p: PatrimonioRecord) => void;
   onAddTransferencia: (t: TransferenciaRecord) => void;
   onAddVistoria: (v: VistoriaRecord) => void;
   onUpdateDatasetFromFirestore?: (bens: PatrimonioRecord[]) => void;
@@ -42,6 +43,7 @@ export const PatrimoniosManager: React.FC<Props> = ({
   vistorias,
   onAddPatrimonio,
   onUpdatePatrimonio,
+  onDeletePatrimonio,
   onAddTransferencia,
   onAddVistoria,
   onUpdateDatasetFromFirestore,
@@ -486,6 +488,21 @@ export const PatrimoniosManager: React.FC<Props> = ({
     setNovaLocalizacao('');
     setNovoValor(0);
     setNovasObs('');
+  };
+
+  const handleConfirmDeleteBem = (bem: PatrimonioRecord) => {
+    if (!isAdmin || !onDeletePatrimonio) return;
+    const etiqueta = bem.etiquetaNumero || bem.numeroTombamento || bem.id;
+    const confirmado = window.confirm(
+      `Deseja realmente excluir o bem #${etiqueta} ("${bem.descricao}")?\n\nA exclusão será sincronizada automaticamente em todos os aparelhos da equipe.`
+    );
+    if (!confirmado) return;
+    onDeletePatrimonio(bem);
+    setSelectedBensIds(prev => prev.filter(id => id !== bem.id));
+    if (showDetailModal?.id === bem.id) {
+      setShowDetailModal(null);
+    }
+    setSuccessToast(`Bem #${etiqueta} excluído e sincronizado na nuvem.`);
   };
 
   const handleSaveAppSheetRecord = (record: PatrimonioRecord) => {
@@ -1341,6 +1358,15 @@ export const PatrimoniosManager: React.FC<Props> = ({
                               >
                                 <Printer className="w-4 h-4" />
                               </button>
+                              {isAdmin && onDeletePatrimonio && (
+                                <button
+                                  onClick={() => handleConfirmDeleteBem(bem)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                  title="Excluir bem (sincroniza em todos os aparelhos)"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1456,6 +1482,14 @@ export const PatrimoniosManager: React.FC<Props> = ({
                               >
                                 Transferir
                               </button>
+                              {isAdmin && onDeletePatrimonio && (
+                                <button
+                                  onClick={() => handleConfirmDeleteBem(bem)}
+                                  className="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
+                                >
+                                  Excluir
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
@@ -1985,6 +2019,15 @@ export const PatrimoniosManager: React.FC<Props> = ({
                 <Printer className="w-3.5 h-3.5" />
                 Imprimir Termo
               </button>
+              {isAdmin && onDeletePatrimonio && (
+                <button
+                  onClick={() => handleConfirmDeleteBem(showDetailModal)}
+                  className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Excluir Bem
+                </button>
+              )}
               <button
                 onClick={() => setShowDetailModal(null)}
                 className="px-4 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold"

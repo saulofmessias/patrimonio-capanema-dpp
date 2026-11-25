@@ -150,6 +150,9 @@ export interface PatrimonioRecord {
   cadastradoPor: string;
   dataCadastro?: string;
   atualizadoEm: string;
+  excluido?: boolean;
+  excluidoEm?: string;
+  excluidoPor?: string;
   isOfflinePending?: boolean;
 }
 

@@ -50,6 +50,13 @@ export function toFirestorePatrimonio(
     cadastradoPor: base.cadastradoPor,
     dataCadastro: base.dataCadastro || '',
     atualizadoEm: nowIso,
+    ...(base.excluido
+      ? {
+          excluido: true,
+          excluidoEm: base.excluidoEm || nowIso,
+          excluidoPor: base.excluidoPor || '',
+        }
+      : {}),
   };
 }
 
