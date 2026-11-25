@@ -577,43 +577,6 @@ export const INITIAL_PATRIMONIOS: PatrimonioRecord[] = [
   }
 ];
 
-export const INITIAL_TRANSFERENCIAS: TransferenciaRecord[] = [
-  {
-    id: 'transf_001',
-    patrimonioId: 'pat_006',
-    patrimonioNumero: 'DPP-2024-00210',
-    patrimonioDescricao: 'Projetor Multimídia Epson PowerLite E20 3400 Lumens HDMI',
-    dataTransferencia: '2026-11-05 14:30:00',
-    secretariaOrigem: 'Secretaria Municipal de Educação',
-    secretariaDestino: 'Secretaria Municipal de Cultura e Turismo',
-    responsavelOrigem: 'Maria Helena dos Santos',
-    novoResponsavel: 'Luciana Pinheiro',
-    motivo: 'Atendimento à programação cultural e eventos no Teatro Municipal',
-    autorizadoPor: 'dpp@capanema.pa.gov.br',
-    termoGerado: true
-  }
-];
+export const INITIAL_TRANSFERENCIAS: TransferenciaRecord[] = [];
 
-export const INITIAL_VISTORIAS: VistoriaRecord[] = [
-  {
-    id: 'vist_001',
-    patrimonioId: 'pat_001',
-    patrimonioNumero: 'DPP-2024-00128',
-    patrimonioDescricao: 'Microcomputador Desktop Dell OptiPlex Intel Core i7',
-    dataVistoria: '2026-10-18',
-    statusEncontrado: 'Localizado no Setor',
-    vistoriador: 'Comissão de Inventário Anual',
-    parecer: 'Plaqueta perfeitamente legível, equipamento em pleno funcionamento e na mesa indicada.'
-  },
-  {
-    id: 'vist_002',
-    patrimonioId: 'pat_005',
-    patrimonioNumero: 'DPP-2019-00104',
-    patrimonioDescricao: 'Impressora Laser HP LaserJet Pro',
-    dataVistoria: '2026-10-19',
-    statusEncontrado: 'Aguardando Descarte',
-    vistoriador: 'Comissão de Inventário Anual',
-    parecer: 'Confirmado no depósito de bens ociosos. Recomendado para o próximo processo de desfazimento/leilão.'
-  }
-];
-
+export const INITIAL_VISTORIAS: VistoriaRecord[] = [];

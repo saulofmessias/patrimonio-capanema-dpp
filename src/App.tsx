@@ -5,11 +5,6 @@ import {
   TransferenciaRecord,
   VistoriaRecord,
 } from './types/appsheet';
-import {
-  INITIAL_PATRIMONIOS,
-  INITIAL_TRANSFERENCIAS,
-  INITIAL_VISTORIAS,
-} from './data/sampleAppsheetSchema';
 import { PatrimoniosManager } from './components/PatrimoniosManager';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { SyncStatusBadge } from './components/SyncStatusBadge';
@@ -59,9 +54,9 @@ function normalizePatrimonioRecord(base: PatrimonioRecord): PatrimonioRecord {
 
 function AppContent() {
   const { firebaseUser, profile, isLoading: isAuthLoading } = useAuth();
-  const [patrimonios, setPatrimonios] = useState<PatrimonioRecord[]>(INITIAL_PATRIMONIOS);
-  const [transferencias, setTransferencias] = useState<TransferenciaRecord[]>(INITIAL_TRANSFERENCIAS);
-  const [vistorias, setVistorias] = useState<VistoriaRecord[]>(INITIAL_VISTORIAS);
+  const [patrimonios, setPatrimonios] = useState<PatrimonioRecord[]>([]);
+  const [transferencias, setTransferencias] = useState<TransferenciaRecord[]>([]);
+  const [vistorias, setVistorias] = useState<VistoriaRecord[]>([]);
   const [hasLoadedDataset, setHasLoadedDataset] = useState<boolean>(false);
   const [pendingQrEtiqueta, setPendingQrEtiqueta] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;

@@ -20,7 +20,7 @@ const EDITS_STORE_NAME = 'edits';
 const CACHE_KEY = 'patrimonios_capanema';
 const LEGACY_LOCALSTORAGE_EDITS_KEY = 'patrimonios_edicoes_capanema_v3';
 
-export const CACHE_VERSION = 'v1';
+export const CACHE_VERSION = 'v2';
 export const CLOUD_SYNC_CURSOR_KEY = 'patrimonios_cloud_sync_at_v2';
 
 function openDb(): Promise<IDBDatabase> {
