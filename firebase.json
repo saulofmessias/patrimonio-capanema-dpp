@@ -4,6 +4,7 @@
     "rules": "firestore.rules"
   },
   "hosting": {
+    "site": "studio-9788369134-200bd",
     "public": "dist",
     "ignore": [
       "firebase.json",
