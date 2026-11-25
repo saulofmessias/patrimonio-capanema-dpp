@@ -29,8 +29,6 @@ export const SECRETARIAS_CANONICAS: LocalizacaoRecord[] = [
   { id: 13, nome: 'SECRETARIA DE PLANEJAMENTO', endereco: 'TV DJALMA DUTRA, Nº 2590 - CENTRO', cidade: 'Capanema' },
   { id: 14, nome: 'SECRETARIA DE TRÂNSITO', endereco: 'TV. DOS JURUNAS, Nº 177 - TANCREDO NEVES', cidade: 'Capanema' },
   { id: 15, nome: 'SECRETARIA DE URBANISMO, OBRAS E VIAÇÃO', endereco: 'RUA 28 DE OUTUBRO, Nº 191 - CENTRO', cidade: 'Capanema' },
-  // Bens sem secretaria definida na origem (32 registros na base migrada).
-  { id: 16, nome: 'SECRETARIA NÃO DEFINIDA', endereco: '—', cidade: 'Capanema' },
 ];
 
 /** Secretaria usada quando o bem ainda não tem linkage (ex.: "Todas" no perfil admin). */
