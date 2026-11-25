@@ -48,7 +48,14 @@ import { SyncStatusBadge } from './components/SyncStatusBadge';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { addPendingItem } from './utils/offlineSyncManager';
 import { findPatrimonioByCodigo } from './utils/etiquetaQr';
-import { readCachedDataset, writeCachedDataset } from './utils/datasetCache';
+import {
+  CLOUD_SYNC_CURSOR_KEY,
+  readCachedDataset,
+  readCachedEdits,
+  subtractClockSkewBuffer,
+  writeCachedDataset,
+  writeCachedEditsBatch,
+} from './utils/datasetCache';
 import {
   toFirestorePatrimonio,
   toFirestoreTransferencia,
@@ -139,29 +146,28 @@ function AppContent() {
         }
 
         if (data && data.length > 0) {
-          // Recupera edições salvas localmente pelo usuário para sobrepor com prioridade
-          let localEdits: Record<string, PatrimonioRecord> = {};
-          try {
-            const saved = localStorage.getItem('patrimonios_edicoes_capanema_v3');
-            if (saved) localEdits = JSON.parse(saved);
-          } catch {}
+          // Recupera edições e sincronizações salvas no IndexedDB (sem limite de 5 MB do localStorage)
+          const cachedEdits = await readCachedEdits();
+          const editsById = new Map<string, PatrimonioRecord>();
+          const editsByEtiqueta = new Map<string, PatrimonioRecord>();
+          for (const edit of cachedEdits) {
+            if (!edit || !edit.id) continue;
+            editsById.set(edit.id, edit);
+            if (edit.etiquetaNumero) {
+              editsByEtiqueta.set(edit.etiquetaNumero, edit);
+            }
+          }
 
           const normalized = data.map(p => {
-            const edited = localEdits[p.id] || (p.etiquetaNumero ? localEdits[`etq_${p.etiquetaNumero}`] : undefined);
+            const edited = editsById.get(p.id) || (p.etiquetaNumero ? editsByEtiqueta.get(p.etiquetaNumero) : undefined);
             return normalizePatrimonioRecord(edited ? { ...p, ...edited } : p);
           });
 
-          // Também inclui eventuais bens novos criados localmente que ainda não estão no JSON base
+          // Também inclui eventuais bens novos criados localmente/nuvem que ainda não estão no JSON base
           const baseIds = new Set(normalized.map(item => item.id));
-          const novosLocais = Object.values(localEdits)
+          const unicosNovos = cachedEdits
             .filter(item => item && item.id && !baseIds.has(item.id))
             .map(normalizePatrimonioRecord);
-          const seenNew = new Set<string>();
-          const unicosNovos = novosLocais.filter(item => {
-            if (seenNew.has(item.id)) return false;
-            seenNew.add(item.id);
-            return true;
-          });
 
           setPatrimonios([...unicosNovos, ...normalized]);
         }
@@ -214,18 +220,9 @@ function AppContent() {
       return [...novos, ...atualizados];
     });
 
-    // Atualiza cache local incremental apenas para lotes pontuais (evita estourar 5MB do localStorage)
-    if (normalizedCloud.length <= 300) {
-      try {
-        const saved = localStorage.getItem('patrimonios_edicoes_capanema_v3');
-        const edits = saved ? JSON.parse(saved) : {};
-        normalizedCloud.forEach(item => {
-          edits[item.id] = item;
-          if (item.etiquetaNumero) edits[`etq_${item.etiquetaNumero}`] = item;
-        });
-        localStorage.setItem('patrimonios_edicoes_capanema_v3', JSON.stringify(edits));
-      } catch {}
-    }
+    // Persiste todos os lotes sincronizados da nuvem no IndexedDB (sem limite de 5 MB
+    // e evitando perda após recarregar a página em lotes maiores que 300 documentos)
+    void writeCachedEditsBatch(normalizedCloud);
   };
 
   // Sincronização automática com a nuvem Firestore ao abrir/autenticar (delta incremental + tempo real)
@@ -233,18 +230,20 @@ function AppContent() {
     if (!firebaseUser || !profile || profile.isSimulated || !hasLoadedDataset) return;
 
     let isActive = true;
-    const SYNC_KEY = 'patrimonios_cloud_sync_at_v1';
-    const sessionStartIso = new Date().toISOString();
+    const SYNC_KEY = CLOUD_SYNC_CURSOR_KEY;
+    const sessionStartIso = subtractClockSkewBuffer(new Date().toISOString());
 
     const syncInitialCloudDelta = async () => {
       try {
         const lastSyncAt = localStorage.getItem(SYNC_KEY);
         const colRef = collection(db, 'patrimonios');
 
-        // Delta: somente o que mudou depois da ultima sincronizacao.
+        // Delta: somente o que mudou depois da ultima sincronizacao (com margem de 5 min
+        // para tolerar pequenas diferencas de relogio entre celulares).
         // Consulta simples em um campo -> nao exige indice composto.
         if (lastSyncAt) {
-          const snap = await getDocs(query(colRef, where('atualizadoEm', '>', lastSyncAt)));
+          const deltaSince = subtractClockSkewBuffer(lastSyncAt);
+          const snap = await getDocs(query(colRef, where('atualizadoEm', '>', deltaSince)));
           if (!isActive) return;
 
           const baixados: PatrimonioRecord[] = [];
@@ -472,14 +471,8 @@ function AppContent() {
       isOfflinePending: isOffline
     };
 
-    // Gravar no cache local também para garantir persistência imediata mesmo em reloads
-    try {
-      const saved = localStorage.getItem('patrimonios_edicoes_capanema_v3');
-      const edits = saved ? JSON.parse(saved) : {};
-      edits[normalized.id] = normalized;
-      if (normalized.etiquetaNumero) edits[`etq_${normalized.etiquetaNumero}`] = normalized;
-      localStorage.setItem('patrimonios_edicoes_capanema_v3', JSON.stringify(edits));
-    } catch {}
+    // Gravar no IndexedDB para persistência imediata mesmo offline ou após reload
+    void writeCachedEditsBatch([normalized]);
 
     if (isOffline) {
       addPendingItem({
@@ -525,16 +518,8 @@ function AppContent() {
     // 1. Atualizar imediatamente o estado em memória no React
     setPatrimonios(prev => prev.map(item => (item.id === updated.id || (updated.etiquetaNumero && item.etiquetaNumero === updated.etiquetaNumero)) ? { ...item, ...updated } : item));
 
-    // 2. Gravar no localStorage para que a edição nunca se perca ao recarregar
-    try {
-      const saved = localStorage.getItem('patrimonios_edicoes_capanema_v3');
-      const edits = saved ? JSON.parse(saved) : {};
-      edits[updated.id] = updated;
-      if (updated.etiquetaNumero) edits[`etq_${updated.etiquetaNumero}`] = updated;
-      localStorage.setItem('patrimonios_edicoes_capanema_v3', JSON.stringify(edits));
-    } catch (e) {
-      console.warn('Erro ao salvar edição localmente:', e);
-    }
+    // 2. Gravar no IndexedDB para que a edição nunca se perca ao recarregar (sem limite de 5 MB)
+    void writeCachedEditsBatch([updated]);
 
     // 3. Atualizar no Firestore (ou enfileirar se offline)
     if (isOffline) {

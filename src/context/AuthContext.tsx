@@ -253,16 +253,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (user && user.email) {
         const emailLower = user.email.toLowerCase().trim();
 
-        // E-mail explicitamente inativo
-        if (emailLower === 'virginia.pedagogia2012@gmail.com') {
-          setIsUnauthorized(true);
-          setUnauthorizedEmail(user.email);
-          setProfile(null);
-          setRealProfile(null);
-          setIsLoading(false);
-          return;
-        }
-
         const isSuperAdmin = SUPER_ADMIN_EMAILS.has(emailLower);
         const preMapped = BUILTIN_REAL_ACCOUNTS.find(
           (a) => a.email.toLowerCase().trim() === emailLower

@@ -7,6 +7,7 @@ import {
 import { db, testConnection, handleFirestoreError, OperationType } from '../services/firebase';
 import { collection, writeBatch, doc, getDocs, limit, query, getCountFromServer } from 'firebase/firestore';
 import { PatrimonioRecord } from '../types/appsheet';
+import { CLOUD_SYNC_CURSOR_KEY } from '../utils/datasetCache';
 import { useAuth } from '../context/AuthContext';
 import { formatCadastroDate } from '../utils/patrimonioFormatters';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -145,7 +146,7 @@ export const FirebaseSyncCenter: React.FC<Props> = ({
       }
 
       try {
-        localStorage.setItem('patrimonios_cloud_sync_at_v1', new Date().toISOString());
+        localStorage.setItem(CLOUD_SYNC_CURSOR_KEY, new Date().toISOString());
       } catch {}
 
       setUploadSuccess(true);
@@ -188,7 +189,7 @@ export const FirebaseSyncCenter: React.FC<Props> = ({
       if (baixados.length > 0 && onUpdateDatasetFromFirestore) {
         onUpdateDatasetFromFirestore(baixados);
         try {
-          localStorage.setItem('patrimonios_cloud_sync_at_v1', new Date().toISOString());
+          localStorage.setItem(CLOUD_SYNC_CURSOR_KEY, new Date().toISOString());
         } catch {}
         await contarDocumentosFirestore();
         alert(`${baixados.length.toLocaleString('pt-BR')} patrimônios sincronizados diretamente da nuvem!`);
