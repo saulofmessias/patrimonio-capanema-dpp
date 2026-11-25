@@ -62,6 +62,7 @@ interface AuthContextType {
     departamento?: string
   ) => Promise<void>;
   removeAuthorizedUser: (email: string) => Promise<void>;
+  migrateBuiltinUsersToFirestore: () => Promise<{ migrated: number; alreadyInCloud: number }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -439,7 +440,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           secretaria: role === 'admin' ? 'Todas' : secretaria,
           departamento: (departamento || 'Setor de Patrimônio').trim(),
           ativo: true,
-          criadoPor: realProfile?.email || profile?.email || 'saulofmessias@gmail.com',
+          criadoPor: realProfile?.email || profile?.email || 'dpp@capanema.pa.gov.br',
           criadoEm: nowIso,
           atualizadoEm: nowIso,
         },
@@ -473,7 +474,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             secretaria: builtInMatch.secretaria,
             departamento: builtInMatch.departamento || 'Setor de Patrimônio',
             ativo: false,
-            removidoPor: realProfile?.email || profile?.email || 'saulofmessias@gmail.com',
+            removidoPor: realProfile?.email || profile?.email || 'dpp@capanema.pa.gov.br',
             atualizadoEm: nowIso,
           },
           { merge: true }
@@ -486,6 +487,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       handleFirestoreError(err, OperationType.DELETE, `authorized_users/${emailLower}`);
       throw err;
     }
+  };
+
+  // Migra contas fixas (bootstrap) que ainda nao possuem documento proprio em /authorized_users.
+  // Nao sobrescreve contas ja existentes (inclusive contas revogadas com ativo: false).
+  const migrateBuiltinUsersToFirestore = async (): Promise<{ migrated: number; alreadyInCloud: number }> => {
+    const snap = await getDocs(collection(db, 'authorized_users'));
+    const existingEmails = new Set<string>();
+    snap.forEach((d) => {
+      const data = d.data() || {};
+      const key = (data.email || d.id || '').toLowerCase().trim();
+      if (key) existingEmails.add(key);
+    });
+
+    const nowIso = new Date().toISOString();
+    const actorEmail = realProfile?.email || profile?.email || 'dpp@capanema.pa.gov.br';
+    let migrated = 0;
+    let alreadyInCloud = 0;
+
+    for (const acc of BUILTIN_REAL_ACCOUNTS) {
+      const emailLower = acc.email.toLowerCase().trim();
+      if (existingEmails.has(emailLower)) {
+        alreadyInCloud += 1;
+        continue;
+      }
+      try {
+        await setDoc(
+          doc(db, 'authorized_users', emailLower),
+          {
+            email: emailLower,
+            nome: acc.nome,
+            role: acc.role,
+            secretaria: acc.role === 'admin' ? 'Todas' : acc.secretaria,
+            departamento: acc.departamento || 'Setor de Patrimônio',
+            ativo: true,
+            criadoPor: actorEmail,
+            criadoEm: nowIso,
+            atualizadoEm: nowIso,
+          },
+          { merge: true }
+        );
+        migrated += 1;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `authorized_users/${emailLower}`);
+        throw err;
+      }
+    }
+
+    await refreshAuthorizedUsers();
+    return { migrated, alreadyInCloud };
   };
 
   // Verificar se o usuário pode editar/transferir patrimônio desta secretaria
@@ -525,7 +575,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoadingUsers,
       refreshAuthorizedUsers,
       addAuthorizedUser,
-      removeAuthorizedUser
+      removeAuthorizedUser,
+      migrateBuiltinUsersToFirestore
     }}>
       {children}
     </AuthContext.Provider>

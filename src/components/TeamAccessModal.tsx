@@ -14,7 +14,8 @@ import {
   RefreshCw,
   Check,
   Copy,
-  Share2
+  Share2,
+  CloudUpload
 } from 'lucide-react';
 import { useAuth, UserRole, AuthorizedUserRecord, SUPER_ADMIN_EMAILS } from '../context/AuthContext';
 import { GERENTES_LIST } from './AppSheetPatrimonioForm';
@@ -54,6 +55,7 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
     refreshAuthorizedUsers,
     addAuthorizedUser,
     removeAuthorizedUser,
+    migrateBuiltinUsersToFirestore,
   } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'usuarios' | 'secretarias'>('usuarios');
@@ -66,6 +68,7 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
   const [secretaria, setSecretaria] = useState<string>(GERENTES_LIST[0].secretaria);
   const [departamento, setDepartamento] = useState('Comissão Setorial de Patrimônio');
   const [isSaving, setIsSaving] = useState(false);
+  const [isMigratingBuiltin, setIsMigratingBuiltin] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [confirmRemoveEmail, setConfirmRemoveEmail] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -166,6 +169,30 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
   }, [authorizedUsers]);
 
   const totalSecretariasCobertas = secretariasCoverage.filter((s) => s.linkedUsers.length > 0).length;
+  const pendingBuiltinUsers = useMemo(
+    () => authorizedUsers.filter((u) => u.source === 'builtin'),
+    [authorizedUsers]
+  );
+
+  const handleMigrateBuiltinToCloud = async () => {
+    setFeedback(null);
+    try {
+      setIsMigratingBuiltin(true);
+      const { migrated, alreadyInCloud } = await migrateBuiltinUsersToFirestore();
+      setFeedback({
+        type: 'success',
+        text:
+          migrated > 0
+            ? `${migrated} conta(s) migrada(s) para o Firestore com sucesso (${alreadyInCloud} já estavam na nuvem). Agora 100% da equipe está salva em authorized_users!`
+            : `Todas as ${alreadyInCloud} contas fixas já estavam salvas na nuvem (authorized_users).`,
+      });
+    } catch (err) {
+      const rawMsg = err instanceof Error ? err.message : 'Erro ao migrar contas para o Firestore.';
+      setFeedback({ type: 'error', text: rawMsg });
+    } finally {
+      setIsMigratingBuiltin(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -396,6 +423,45 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
 
           {activeTab === 'usuarios' && (
             <>
+              {/* Banner de Migração das Contas Fixas para o Firestore (LGPD / Segurança) */}
+              {!isLoadingUsers && pendingBuiltinUsers.length > 0 && (
+                <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-2.5 text-xs text-indigo-950">
+                    <CloudUpload className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">
+                        {pendingBuiltinUsers.length} conta(s) ainda estão apenas no código-fonte (Base DPP)
+                      </p>
+                      <p className="text-[11px] text-indigo-800/90 mt-0.5">
+                        Migre essas contas para o Firestore (<code>authorized_users</code>) em 1 clique para podermos remover os e-mails pessoais fixos do código com segurança e sem travar ninguém.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleMigrateBuiltinToCloud}
+                    disabled={isMigratingBuiltin || isSaving}
+                    className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors shrink-0 cursor-pointer"
+                  >
+                    <CloudUpload className={`w-3.5 h-3.5 ${isMigratingBuiltin ? 'animate-pulse' : ''}`} />
+                    <span>
+                      {isMigratingBuiltin
+                        ? 'Migrando...'
+                        : `Migrar ${pendingBuiltinUsers.length} conta(s) para a Nuvem`}
+                    </span>
+                  </button>
+                </div>
+              )}
+
+              {!isLoadingUsers && authorizedUsers.length > 0 && pendingBuiltinUsers.length === 0 && (
+                <div className="px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-xs text-emerald-900">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    <strong>100% na Nuvem:</strong> todas as contas autorizadas já estão gravadas em <code>authorized_users</code> no Firestore (seguro para remover os e-mails fixos do código).
+                  </span>
+                </div>
+              )}
+
               {/* Formulário de Cadastro / Edição */}
               <form
                 onSubmit={handleSaveUser}
