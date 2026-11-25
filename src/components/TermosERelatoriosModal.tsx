@@ -454,6 +454,7 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
           #termo-print-area table {
             width: 100% !important;
             border-collapse: collapse !important;
+            border: 1px solid #1e293b !important;
           }
           #termo-print-area thead {
             display: table-header-group !important;
@@ -1711,7 +1712,7 @@ export const TermosERelatoriosModal: React.FC<Props> = ({
 
                     return (
                       <>
-                        <div className="border border-slate-800 rounded overflow-hidden print:rounded-none">
+                        <div className="border border-slate-800 rounded overflow-hidden print:border-0 print:rounded-none print:overflow-visible">
                           <table className="w-full text-left border-collapse text-[10px] font-sans">
                             <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
                               <tr>
