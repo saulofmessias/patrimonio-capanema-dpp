@@ -18,15 +18,7 @@ service cloud.firestore {
     }
 
     function isVerified() {
-      // Google OAuth sempre marca email_verified == true.
-      // No GitHub OAuth (provider alternativo), o token do Firebase pode vir sem
-      // email_verified == true mesmo com e-mail verificado no GitHub; o acesso
-      // continua restrito exclusivamente aos e-mails previamente autorizados em
-      // authorized_users no Firestore.
-      return isAuthenticated() && (
-        request.auth.token.get('email_verified', false) == true
-        || request.auth.token.get('firebase', {}).get('sign_in_provider', '') == 'github.com'
-      );
+      return isAuthenticated() && request.auth.token.get('email_verified', false) == true;
     }
 
     function isValidId(id) {
