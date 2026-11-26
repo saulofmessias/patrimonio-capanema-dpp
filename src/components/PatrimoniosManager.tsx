@@ -56,8 +56,12 @@ export const PatrimoniosManager: React.FC<Props> = ({
   const [sliceFilter, setSliceFilter] = useState<string>('todos');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSecretaria, setSelectedSecretaria] = useState(
-    profile && profile.role !== 'admin' && profile.secretaria && profile.secretaria !== 'Todas' 
-      ? profile.secretaria 
+    profile &&
+      profile.role !== 'admin' &&
+      profile.role !== 'cadastrador' &&
+      profile.secretaria &&
+      profile.secretaria !== 'Todas'
+      ? profile.secretaria
       : 'Todas'
   );
   const [selectedLocais, setSelectedLocais] = useState<string[]>([]);
@@ -66,11 +70,20 @@ export const PatrimoniosManager: React.FC<Props> = ({
 
   // Ajustar filtro automaticamente ao trocar de perfil ou secretaria lotada
   useEffect(() => {
-    if (profile && profile.role !== 'admin' && profile.secretaria && profile.secretaria !== 'Todas') {
+    if (
+      profile &&
+      profile.role !== 'admin' &&
+      profile.role !== 'cadastrador' &&
+      profile.secretaria &&
+      profile.secretaria !== 'Todas'
+    ) {
       setSelectedSecretaria(profile.secretaria);
       setSelectedLocais([]);
       setSelectedDepartamentos([]);
-    } else if (profile && (profile.role === 'admin' || profile.secretaria === 'Todas')) {
+    } else if (
+      profile &&
+      (profile.role === 'admin' || profile.role === 'cadastrador' || profile.secretaria === 'Todas')
+    ) {
       setSelectedSecretaria('Todas');
       setSelectedLocais([]);
       setSelectedDepartamentos([]);
@@ -739,14 +752,16 @@ export const PatrimoniosManager: React.FC<Props> = ({
               )}
 
               {/* 2. Vistoria em Campo com Câmera e QR Code */}
-              <button
-                onClick={() => setShowScannerModal(true)}
-                className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all whitespace-nowrap shrink-0 cursor-pointer"
-                title="Auditoria em campo com câmera do celular para leitura de QR Code"
-              >
-                <Camera className="w-4 h-4 text-emerald-200 shrink-0" />
-                <span>Vistoria / Scanner</span>
-              </button>
+              {canRegisterVistoria && (
+                <button
+                  onClick={() => setShowScannerModal(true)}
+                  className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all whitespace-nowrap shrink-0 cursor-pointer"
+                  title="Auditoria em campo com câmera do celular para leitura de QR Code"
+                >
+                  <Camera className="w-4 h-4 text-emerald-200 shrink-0" />
+                  <span>Vistoria / Scanner</span>
+                </button>
+              )}
 
               {/* 3. Impressão de Etiquetas 5 × 3,5 cm */}
               <button
@@ -1337,7 +1352,11 @@ export const PatrimoniosManager: React.FC<Props> = ({
                               ) : (
                                 <span
                                   className="p-1.5 text-slate-300 inline-flex items-center justify-center cursor-not-allowed"
-                                  title={`Edição restrita: Bem sob guarda da ${bem.secretariaSetor}. Apenas o Gerente titular ou Admin pode alterar.`}
+                                  title={
+                                    profile?.role === 'cadastrador'
+                                      ? 'Perfil Gerente Cadastrador: permissão somente para Cadastrar Novo Bem (sem editar ou excluir).'
+                                      : `Edição restrita: Bem sob guarda da ${bem.secretariaSetor}. Apenas o Gerente titular ou Admin pode alterar.`
+                                  }
                                 >
                                   <Lock className="w-3.5 h-3.5 text-slate-400" />
                                 </span>

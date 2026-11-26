@@ -36,8 +36,13 @@ export const AppSheetPhotoSyncModal: React.FC<Props> = ({
   patrimonios,
   onPhotosUpdated
 }) => {
-  const { firebaseUser, profile, canCreatePatrimonio } = useAuth();
-  const canUploadCloud = Boolean(firebaseUser && profile && !profile.isSimulated && canCreatePatrimonio);
+  const { firebaseUser, profile } = useAuth();
+  const canUploadCloud = Boolean(
+    firebaseUser &&
+      profile &&
+      !profile.isSimulated &&
+      (profile.role === 'admin' || profile.role === 'gerente')
+  );
 
   const [activeTab, setActiveTab] = useState<'zip' | 'pasta' | 'link'>('zip');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);

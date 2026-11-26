@@ -11,6 +11,7 @@ import { compressImageFile } from '../utils/photoStorage';
 import { fetchAndCacheCloudPhoto } from '../utils/cloudPhotoSync';
 import { buildEtiquetaQrFicha } from '../utils/etiquetaQr';
 import { formatCadastroDate } from '../utils/patrimonioFormatters';
+import { useAuth } from '../context/AuthContext';
 
 interface Props {
   isOpen: boolean;
@@ -93,7 +94,17 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
   initialData,
   totalExistingRecords = 6664
 }) => {
+  const { profile } = useAuth();
   if (!isOpen) return null;
+
+  const isLockedToOwnSecretaria =
+    profile?.role === 'gerente' &&
+    Boolean(profile.secretaria) &&
+    profile.secretaria !== 'Todas';
+  const ownSecretariaId = isLockedToOwnSecretaria
+    ? resolveSecretariaId(profile?.secretaria) || INITIAL_LOCALIZACOES[0]?.id || 1
+    : INITIAL_LOCALIZACOES[0]?.id || 1;
+  const defaultCriadoPor = profile?.email || 'dpp@capanema.pa.gov.br';
 
   // 1. ID_Patrimonio
   const [idPatrimonio, setIdPatrimonio] = useState(
@@ -169,13 +180,13 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
       setNomePatrimonio('');
       setCategoria('Equipamentos para escritório');
       setStatus('Disponível');
-      setLocalizacaoId(defaultLoc);
+      setLocalizacaoId(ownSecretariaId);
       setLocal('');
       setDepartamento('');
       setCustoCompra(0);
       setDataCompra('');
       setCriadoEm(formatBrDateOnly(new Date()));
-      setCriadoPor('dpp@capanema.pa.gov.br');
+      setCriadoPor(defaultCriadoPor);
       setEtiquetaNumero((totalExistingRecords + 1).toString());
       setNumeroSerie('');
       setMarcaModelo('');
@@ -206,7 +217,7 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
   );
 
   // 6. Localizacao (1 to 15)
-  const defaultLoc = INITIAL_LOCALIZACOES[0]?.id || 1;
+  const defaultLoc = ownSecretariaId;
   const initialLocId = initialData?.secretariaSetor
     ? resolveSecretariaId(initialData.secretariaSetor) || defaultLoc
     : defaultLoc;
@@ -246,7 +257,7 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
 
   // 13. Criado_Por
   const [criadoPor, setCriadoPor] = useState<string>(
-    initialData?.cadastradoPor || 'dpp@capanema.pa.gov.br'
+    initialData?.cadastradoPor || defaultCriadoPor
   );
 
   // Campos Adicionais de Auditoria & TCM-PA (Opcionais)
@@ -586,8 +597,9 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
               <select
                 required
                 value={localizacaoId}
+                disabled={isLockedToOwnSecretaria}
                 onChange={(e) => setLocalizacaoId(Number(e.target.value))}
-                className="w-full appearance-none bg-white border border-slate-300 rounded px-3 py-2 pr-8 text-slate-800 text-xs focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 shadow-2xs font-medium"
+                className="w-full appearance-none bg-white border border-slate-300 rounded px-3 py-2 pr-8 text-slate-800 text-xs focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 shadow-2xs font-medium disabled:bg-slate-100 disabled:text-slate-600"
               >
                 {INITIAL_LOCALIZACOES.map((loc) => (
                   <option key={loc.id} value={loc.id}>

@@ -37,7 +37,8 @@ export const UserAuthBar: React.FC = () => {
   const getRoleBadgeLabel = () => {
     if (!profile) return '';
     if (profile.role === 'admin') return 'Administrador Geral (DPP)';
-    if (profile.role === 'gerente') return `Gerente: ${profile.secretaria}`;
+    if (profile.role === 'gerente') return `Gerente Setorial: ${profile.secretaria}`;
+    if (profile.role === 'cadastrador') return 'Gerente Cadastrador (Todas — Só Novo Bem)';
     if (profile.role === 'vistoriador') return `Vistoriador: ${profile.secretaria}`;
     return isDemoMode ? 'Modo Demonstração (Somente Leitura)' : 'Leitor / Auditor';
   };
@@ -65,6 +66,8 @@ export const UserAuthBar: React.FC = () => {
                 className={`text-[10px] font-bold px-2 py-0.2 rounded-full uppercase ${
                   isAdmin
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+                    : profile?.role === 'cadastrador'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40'
                     : isDemoMode
                     ? 'bg-amber-500/20 text-amber-300 border border-amber-400/40'
                     : 'bg-blue-500/20 text-blue-300 border border-blue-400/40'
@@ -127,6 +130,8 @@ export const UserAuthBar: React.FC = () => {
                 <strong className="text-slate-100 font-bold max-w-[130px] truncate">
                   {profile?.role === 'admin'
                     ? 'Admin Geral'
+                    : profile?.role === 'cadastrador'
+                    ? 'Cadastrador (Todas)'
                     : profile?.secretaria.replace('SECRETARIA DE ', 'SEC. ')}
                 </strong>
                 <ChevronDown className="w-3 h-3 text-slate-400" />
@@ -148,7 +153,7 @@ export const UserAuthBar: React.FC = () => {
                         key={acc.uid}
                         type="button"
                         onClick={() => {
-                          simulateProfile(acc.secretaria);
+                          simulateProfile(acc.uid);
                           setShowSwitchMenu(false);
                         }}
                         className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
@@ -160,6 +165,8 @@ export const UserAuthBar: React.FC = () => {
                           <div className="text-[10px] text-slate-400 truncate">
                             {acc.role === 'admin'
                               ? 'Acesso Total a Todas as 15 Secretarias'
+                              : acc.role === 'cadastrador'
+                              ? 'Todas as 15 Secretarias — Apenas Novo Bem'
                               : acc.secretaria}
                           </div>
                         </div>

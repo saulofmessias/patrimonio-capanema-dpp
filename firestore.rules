@@ -76,16 +76,22 @@ service cloud.firestore {
       return isBootstrapAdmin() || (isVerified() && effectiveRole() in ['admin', 'gerente']);
     }
 
+    // Gerente Setorial Cadastrador: acesso a todas as 15 secretarias apenas para Cadastrar Novo Bem
+    // (nao pode editar, transferir, vistoriar ou excluir bens existentes).
+    function isCadastrador() {
+      return isVerified() && effectiveRole() == 'cadastrador';
+    }
+
     function isVistoriador() {
       return isVerified() && effectiveRole() == 'vistoriador';
     }
 
-    // Perfis operacionais com permissao de registrar vistorias e auditoria (exclui 'leitor').
+    // Perfis operacionais com permissao de registrar vistorias e auditoria (exclui 'leitor' e 'cadastrador').
     function podeRegistrarVistoria() {
       return isBootstrapAdmin() || (isVerified() && effectiveRole() in ['admin', 'gerente', 'vistoriador']);
     }
 
-    // Qualquer servidor oficialmente autorizado (admin, gerente, vistoriador, leitor).
+    // Qualquer servidor oficialmente autorizado (admin, gerente, cadastrador, vistoriador, leitor).
     function isAutorizado() {
       return isBootstrapAdmin() || (isVerified() && effectiveRole() != null);
     }
@@ -162,6 +168,7 @@ service cloud.firestore {
     match /patrimonios/{patrimonioId} {
       allow read: if isAutorizado();
       allow create: if isAdmin()
+        || isCadastrador()
         || (isGerente() && podeOperarNaSecretaria(request.resource.data.secretariaSetor));
       // Admin pode atualizar qualquer campo (inclusive transferir de secretaria).
       // Gerente so edita bens da propria secretaria e nao pode remanejar para outra.
@@ -222,7 +229,7 @@ service cloud.firestore {
     // ==================================================================
     match /auditLogs/{logId} {
       allow read: if isAutorizado();
-      allow create: if podeRegistrarVistoria();
+      allow create: if podeRegistrarVistoria() || isCadastrador();
       allow update, delete: if false; // Imutabilidade de auditoria
     }
   }

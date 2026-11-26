@@ -6,7 +6,7 @@ import { GERENTES_LIST } from '../components/AppSheetPatrimonioForm';
 import { canOperarNaSecretaria } from '../data/secretarias';
 import { handleFirestoreError, OperationType } from '../services/firebase';
 
-export type UserRole = 'admin' | 'gerente' | 'vistoriador' | 'leitor';
+export type UserRole = 'admin' | 'gerente' | 'cadastrador' | 'vistoriador' | 'leitor';
 
 export interface UserProfile {
   uid: string;
@@ -54,6 +54,7 @@ interface AuthContextType {
   isRealAdmin: boolean;
   authorizedUsers: AuthorizedUserRecord[];
   isLoadingUsers: boolean;
+  usersLoadError: string | null;
   refreshAuthorizedUsers: () => Promise<void>;
   addAuthorizedUser: (
     email: string,
@@ -68,6 +69,73 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const VERIFIED_PROFILE_CACHE_KEY = 'capanema_verified_profile_v1';
+const AUTHORIZED_USERS_CACHE_KEY = 'capanema_authorized_users_cache_v1';
+const VALID_ROLES: UserRole[] = ['admin', 'gerente', 'cadastrador', 'vistoriador', 'leitor'];
+
+function sortAuthorizedUsers(list: AuthorizedUserRecord[]): AuthorizedUserRecord[] {
+  return [...list].sort((a, b) => {
+    if (a.role === 'admin' && b.role !== 'admin') return -1;
+    if (a.role !== 'admin' && b.role === 'admin') return 1;
+    return a.nome.localeCompare(b.nome, 'pt-BR');
+  });
+}
+
+function readCachedAuthorizedUsers(): AuthorizedUserRecord[] {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(AUTHORIZED_USERS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const valid: AuthorizedUserRecord[] = [];
+    for (const item of parsed) {
+      if (
+        item &&
+        typeof item.email === 'string' &&
+        item.email.trim() &&
+        typeof item.nome === 'string' &&
+        VALID_ROLES.includes(item.role)
+      ) {
+        valid.push({
+          email: item.email.toLowerCase().trim(),
+          nome: item.nome,
+          role: item.role as UserRole,
+          secretaria:
+            item.role === 'admin' || item.role === 'cadastrador'
+              ? 'Todas'
+              : (item.secretaria || 'Todas'),
+          departamento: item.departamento || 'Setor de Patrimônio',
+          ativo: item.ativo !== false,
+          criadoPor: item.criadoPor,
+          criadoEm: item.criadoEm,
+          atualizadoEm: item.atualizadoEm,
+          source: 'firestore',
+        });
+      }
+    }
+    return sortAuthorizedUsers(valid);
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedAuthorizedUsers(users: AuthorizedUserRecord[]): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(AUTHORIZED_USERS_CACHE_KEY, JSON.stringify(users));
+  } catch {
+    // Ignora limite de localStorage
+  }
+}
+
+function clearCachedAuthorizedUsers(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(AUTHORIZED_USERS_CACHE_KEY);
+  } catch {
+    // Ignora erro de storage
+  }
+}
 
 // Fallback de emergencia APENAS quando o Firestore esta fora do ar ou atingiu a cota diaria gratuita (Spark).
 // Armazena somente hashes SHA-256 (sem nenhum e-mail ou nome pessoal em texto claro no bundle).
@@ -168,14 +236,17 @@ function readCachedVerifiedProfile(uid: string, emailLower: string): UserProfile
       typeof parsed.email === 'string' &&
       parsed.email.toLowerCase().trim() === emailLower &&
       parsed.role &&
-      ['admin', 'gerente', 'vistoriador', 'leitor'].includes(parsed.role)
+      VALID_ROLES.includes(parsed.role as UserRole)
     ) {
       return {
         uid: parsed.uid,
         email: parsed.email,
         nome: parsed.nome || 'Servidor Autorizado',
         role: parsed.role as UserRole,
-        secretaria: parsed.role === 'admin' ? 'Todas' : (parsed.secretaria || 'Todas'),
+        secretaria:
+          parsed.role === 'admin' || parsed.role === 'cadastrador'
+            ? 'Todas'
+            : (parsed.secretaria || 'Todas'),
         departamento: parsed.departamento || 'Setor de Patrimônio',
         fotoUrl: parsed.fotoUrl,
         isSimulated: false,
@@ -227,15 +298,26 @@ function isTransientFirestoreError(err: unknown): boolean {
 }
 
 // Perfis institucionais simulados (sem e-mails pessoais no bundle) usados apenas para auditoria RBAC pelo Admin
-export const SYSTEM_ACCOUNTS: UserProfile[] = GERENTES_LIST.map((g) => ({
-  uid: `gerente-${g.id}`,
-  email: `gerente.${g.secretaria.toLowerCase().replace(/[^a-z]/g, '')}@capanema.pa.gov.br`,
-  nome: g.nome,
-  role: 'gerente' as UserRole,
-  secretaria: g.secretaria,
-  departamento: 'Comissão Setorial de Patrimônio',
-  isPlaceholderEmail: true
-}));
+export const SYSTEM_ACCOUNTS: UserProfile[] = [
+  {
+    uid: 'cadastrador-todas',
+    email: 'cadastrador.patrimonio@capanema.pa.gov.br',
+    nome: 'Gerente Setorial Cadastrador (Todas — Só Novo Bem)',
+    role: 'cadastrador' as UserRole,
+    secretaria: 'Todas',
+    departamento: 'Equipe Volante de Tombamento (DPP)',
+    isPlaceholderEmail: true,
+  },
+  ...GERENTES_LIST.map((g) => ({
+    uid: `gerente-${g.id}`,
+    email: `gerente.${g.secretaria.toLowerCase().replace(/[^a-z]/g, '')}@capanema.pa.gov.br`,
+    nome: g.nome,
+    role: 'gerente' as UserRole,
+    secretaria: g.secretaria,
+    departamento: 'Comissão Setorial de Patrimônio',
+    isPlaceholderEmail: true
+  })),
+];
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
@@ -245,11 +327,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isUnauthorized, setIsUnauthorized] = useState<boolean>(false);
   const [unauthorizedEmail, setUnauthorizedEmail] = useState<string | null>(null);
   const [authCheckError, setAuthCheckError] = useState<string | null>(null);
-  const [authorizedUsers, setAuthorizedUsers] = useState<AuthorizedUserRecord[]>([]);
+  const [authorizedUsers, setAuthorizedUsers] = useState<AuthorizedUserRecord[]>(() =>
+    readCachedAuthorizedUsers()
+  );
   const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
+  const [usersLoadError, setUsersLoadError] = useState<string | null>(null);
 
   const refreshAuthorizedUsers = useCallback(async () => {
     setIsLoadingUsers(true);
+    setUsersLoadError(null);
     try {
       const snap = await getDocs(collection(db, 'authorized_users'));
       const activeUsers: AuthorizedUserRecord[] = [];
@@ -257,11 +343,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const data = d.data() || {};
         const emailLower = (data.email || d.id || '').toLowerCase().trim();
         if (!emailLower || data.ativo === false) return;
+        const parsedRole = VALID_ROLES.includes(data.role) ? (data.role as UserRole) : 'gerente';
         activeUsers.push({
           email: emailLower,
           nome: data.nome || 'Servidor Autorizado',
-          role: (data.role as UserRole) || 'gerente',
-          secretaria: data.secretaria || 'Todas',
+          role: parsedRole,
+          secretaria:
+            parsedRole === 'admin' || parsedRole === 'cadastrador'
+              ? 'Todas'
+              : (data.secretaria || 'Todas'),
           departamento: data.departamento || 'Setor de Patrimônio',
           ativo: true,
           criadoPor: data.criadoPor,
@@ -271,15 +361,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       });
 
-      activeUsers.sort((a, b) => {
-        if (a.role === 'admin' && b.role !== 'admin') return -1;
-        if (a.role !== 'admin' && b.role === 'admin') return 1;
-        return a.nome.localeCompare(b.nome, 'pt-BR');
-      });
-
-      setAuthorizedUsers(activeUsers);
+      const sorted = sortAuthorizedUsers(activeUsers);
+      setAuthorizedUsers(sorted);
+      writeCachedAuthorizedUsers(sorted);
+      setUsersLoadError(null);
     } catch (err) {
       console.warn('Erro ao carregar lista de usuários autorizados:', err);
+      const rawMsg = (err instanceof Error ? err.message : String(err || '')).toLowerCase();
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err
+          ? String((err as { code?: unknown }).code || '').toLowerCase()
+          : '';
+      if (
+        code.includes('resource-exhausted') ||
+        rawMsg.includes('quota') ||
+        rawMsg.includes('resource_exhausted')
+      ) {
+        setUsersLoadError(
+          'Cota diária gratuita de leituras do Firebase atingida hoje (zera às 05h). Os cadastros salvos continuam gravados na nuvem e os novos aparecem abaixo imediatamente; amanhã clique em "Atualizar Nuvem" para recarregar toda a equipe.'
+        );
+      } else if (isTransientFirestoreError(err)) {
+        setUsersLoadError(
+          'Sem conexão estável com o Firestore no momento. Exibindo os cadastros salvos localmente; clique em "Atualizar Nuvem" quando a internet normalizar.'
+        );
+      } else {
+        setUsersLoadError(
+          'Não foi possível listar a equipe na nuvem agora. Verifique sua conexão e clique em "Atualizar Nuvem".'
+        );
+      }
     } finally {
       setIsLoadingUsers(false);
     }
@@ -376,13 +485,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           applyExplicitDenied();
           return;
         }
-        const role = (data.role as UserRole) || 'gerente';
+        const role: UserRole = VALID_ROLES.includes(data.role) ? (data.role as UserRole) : 'gerente';
         applyAuthorizedProfile({
           uid: user.uid,
           email: user.email,
           nome: data.nome || user.displayName || 'Servidor Autorizado',
           role,
-          secretaria: role === 'admin' ? 'Todas' : (data.secretaria || 'Todas'),
+          secretaria:
+            role === 'admin' || role === 'cadastrador'
+              ? 'Todas'
+              : (data.secretaria || 'Todas'),
           departamento: data.departamento || 'Setor de Patrimônio',
           fotoUrl: user.photoURL || undefined,
           isSimulated: false
@@ -459,6 +571,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRealProfile(emergencyProfile);
         setProfile(emergencyProfile);
         setIsLoading(false);
+        if (emergencyProfile.role === 'admin') {
+          void refreshAuthorizedUsers();
+        }
         return;
       }
 
@@ -513,9 +628,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Falha no logout:', err);
     } finally {
       clearCachedVerifiedProfile();
+      clearCachedAuthorizedUsers();
       setFirebaseUser(null);
       setProfile(null);
       setRealProfile(null);
+      setAuthorizedUsers([]);
+      setUsersLoadError(null);
       setIsUnauthorized(false);
       setUnauthorizedEmail(null);
       setAuthCheckError(null);
@@ -538,18 +656,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  // Simular perfil de qualquer um dos 15 Gerentes de Patrimônio para testes de auditoria (apenas Admin real)
+  // Simular perfil de qualquer um dos 15 Gerentes de Patrimônio ou Cadastrador para testes de auditoria (apenas Admin real)
   const simulateProfile = (secretariaOrId: string) => {
     if (realProfile?.role !== 'admin') return;
 
-    if (secretariaOrId === 'admin' || secretariaOrId === 'Todas') {
+    if (secretariaOrId === 'admin') {
       setProfile(realProfile);
       return;
     }
 
-    const gerenteFound = SYSTEM_ACCOUNTS.find(
-      u => u.secretaria === secretariaOrId || u.uid === secretariaOrId
-    );
+    const foundByUid = SYSTEM_ACCOUNTS.find((u) => u.uid === secretariaOrId);
+    const gerenteFound =
+      foundByUid || SYSTEM_ACCOUNTS.find((u) => u.secretaria === secretariaOrId);
 
     if (gerenteFound) {
       setProfile({ ...gerenteFound, isSimulated: true });
@@ -574,6 +692,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     const emailLower = email.toLowerCase().trim();
     const nowIso = new Date().toISOString();
+    const normalizedSecretaria =
+      role === 'admin' || role === 'cadastrador' ? 'Todas' : secretaria;
+    const normalizedDepto = (departamento || 'Setor de Patrimônio').trim();
+    const createdBy = realProfile?.email || profile?.email || 'dpp@capanema.pa.gov.br';
     try {
       await setDoc(
         doc(db, 'authorized_users', emailLower),
@@ -581,15 +703,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: emailLower,
           nome: nome.trim(),
           role,
-          secretaria: role === 'admin' ? 'Todas' : secretaria,
-          departamento: (departamento || 'Setor de Patrimônio').trim(),
+          secretaria: normalizedSecretaria,
+          departamento: normalizedDepto,
           ativo: true,
-          criadoPor: realProfile?.email || profile?.email || 'dpp@capanema.pa.gov.br',
+          criadoPor: createdBy,
           criadoEm: nowIso,
           atualizadoEm: nowIso,
         },
         { merge: true }
       );
+
+      // Atualização otimista + cache local imediato (garante que o servidor apareça na lista
+      // mesmo se a leitura seguinte falhar por cota diária de leituras do Firestore Spark).
+      const savedRecord: AuthorizedUserRecord = {
+        email: emailLower,
+        nome: nome.trim(),
+        role,
+        secretaria: normalizedSecretaria,
+        departamento: normalizedDepto,
+        ativo: true,
+        criadoPor: createdBy,
+        criadoEm: nowIso,
+        atualizadoEm: nowIso,
+        source: 'firestore',
+      };
+      setAuthorizedUsers((prev) => {
+        const without = prev.filter((u) => u.email.toLowerCase().trim() !== emailLower);
+        const next = sortAuthorizedUsers([...without, savedRecord]);
+        writeCachedAuthorizedUsers(next);
+        return next;
+      });
+
       await refreshAuthorizedUsers();
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `authorized_users/${emailLower}`);
@@ -614,6 +758,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       await deleteDoc(doc(db, 'authorized_users', emailLower));
+      setAuthorizedUsers((prev) => {
+        const next = prev.filter((u) => u.email.toLowerCase().trim() !== emailLower);
+        writeCachedAuthorizedUsers(next);
+        return next;
+      });
       await refreshAuthorizedUsers();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `authorized_users/${emailLower}`);
@@ -624,14 +773,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Verificar se o usuário pode editar/transferir patrimônio desta secretaria
   const canEditSecretaria = (secretariaAlvo: string): boolean => {
     if (!profile) return false;
-    if (profile.role === 'leitor' || profile.role === 'vistoriador') return false;
+    if (
+      profile.role === 'leitor' ||
+      profile.role === 'vistoriador' ||
+      profile.role === 'cadastrador'
+    ) {
+      return false;
+    }
     if (profile.role === 'admin') return true;
     // Compara sem acento, caixa e grafias legadas ("ASSITENCIA" x "ASSISTÊNCIA").
     return canOperarNaSecretaria(profile.secretaria, secretariaAlvo);
   };
 
-  const canCreatePatrimonio = !!profile && (profile.role === 'admin' || profile.role === 'gerente');
-  const canRegisterVistoria = !!profile && profile.role !== 'leitor';
+  const canCreatePatrimonio =
+    !!profile &&
+    (profile.role === 'admin' || profile.role === 'gerente' || profile.role === 'cadastrador');
+  const canRegisterVistoria =
+    !!profile &&
+    (profile.role === 'admin' || profile.role === 'gerente' || profile.role === 'vistoriador');
   const isAdmin = profile?.role === 'admin';
   const isRealAdmin = realProfile?.role === 'admin';
 
@@ -657,6 +816,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isRealAdmin,
       authorizedUsers,
       isLoadingUsers,
+      usersLoadError,
       refreshAuthorizedUsers,
       addAuthorizedUser,
       removeAuthorizedUser

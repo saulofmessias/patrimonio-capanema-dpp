@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   X,
   UserPlus,
@@ -31,9 +31,14 @@ const ROLE_LABELS: Record<UserRole, { label: string; desc: string; badgeClass: s
     badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   },
   gerente: {
-    label: 'Gerente Setorial',
+    label: 'Gerente Setorial (Padrão)',
     desc: 'Cadastra, edita e transfere bens da própria Secretaria',
     badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
+  },
+  cadastrador: {
+    label: 'Gerente Cadastrador (Todas — Só Novo Bem)',
+    desc: 'Acesso a todas as 15 Secretarias somente para Cadastrar Novo Bem (sem editar ou excluir)',
+    badgeClass: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   },
   vistoriador: {
     label: 'Vistoriador de Campo',
@@ -53,6 +58,7 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
     profile,
     authorizedUsers,
     isLoadingUsers,
+    usersLoadError,
     refreshAuthorizedUsers,
     addAuthorizedUser,
     removeAuthorizedUser,
@@ -80,6 +86,13 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
   const scrollBodyRef = useRef<HTMLDivElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
   const nomeInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSearchTerm('');
+      void refreshAuthorizedUsers();
+    }
+  }, [isOpen, refreshAuthorizedUsers]);
 
   const scrollToFormAndFocus = (focusTarget: 'email' | 'nome') => {
     setTimeout(() => {
@@ -203,7 +216,7 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
         cleanEmail,
         nome.trim(),
         role,
-        role === 'admin' ? 'Todas' : secretaria,
+        role === 'admin' || role === 'cadastrador' ? 'Todas' : secretaria,
         departamento.trim() || 'Setor de Patrimônio'
       );
 
@@ -407,11 +420,22 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
             </div>
           )}
 
+          {usersLoadError && (
+            <div className="p-3 rounded-xl border bg-amber-50 border-amber-300 text-amber-950 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <div className="font-bold">Aviso de leitura na nuvem</div>
+                <div>{usersLoadError}</div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'usuarios' && (
             <>
               {/* Formulário de Cadastro / Edição */}
               <form
                 onSubmit={handleSaveUser}
+                autoComplete="off"
                 className={`p-4 rounded-2xl border space-y-3 transition-all ${
                   editingUser
                     ? 'bg-amber-50/80 border-amber-300 ring-2 ring-amber-200/80'
@@ -456,6 +480,8 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
                     <input
                       ref={emailInputRef}
                       type="email"
+                      name="novo-servidor-gmail"
+                      autoComplete="off"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -488,11 +514,15 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
                       onChange={(e) => setRole(e.target.value as UserRole)}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="gerente">Gerente Setorial (Edita sua Secretaria)</option>
+                      <option value="gerente">Gerente Setorial Padrão (Edita sua Secretaria)</option>
+                      <option value="cadastrador">Gerente Setorial Cadastrador (Todas — Só Novo Bem)</option>
                       <option value="vistoriador">Vistoriador de Campo (Apenas Vistoria)</option>
                       <option value="leitor">Leitor / Auditor (Somente Leitura)</option>
                       <option value="admin">Administrador Geral (DPP - Todas)</option>
                     </select>
+                    <p className="mt-1 text-[10px] text-slate-500 leading-snug">
+                      {ROLE_LABELS[role]?.desc}
+                    </p>
                   </div>
 
                   <div>
@@ -500,13 +530,15 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
                       Secretaria de Lotação *
                     </label>
                     <select
-                      value={role === 'admin' ? 'Todas' : secretaria}
-                      disabled={role === 'admin'}
+                      value={role === 'admin' || role === 'cadastrador' ? 'Todas' : secretaria}
+                      disabled={role === 'admin' || role === 'cadastrador'}
                       onChange={(e) => setSecretaria(e.target.value)}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
                     >
                       {role === 'admin' ? (
-                        <option value="Todas">Todas as Secretarias (Acesso Total)</option>
+                        <option value="Todas">Todas as 15 Secretarias (Acesso Total)</option>
+                      ) : role === 'cadastrador' ? (
+                        <option value="Todas">Todas as 15 Secretarias (Somente Novo Bem)</option>
                       ) : (
                         <>
                           <option value="Todas">Todas as Secretarias</option>
@@ -563,16 +595,58 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
                   <div className="relative w-full sm:w-64">
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
-                      type="text"
+                      type="search"
+                      id="team-search-filter"
+                      name="team-search-filter"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       placeholder="Buscar nome, e-mail ou pasta..."
-                      className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    {searchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchTerm('')}
+                        title="Limpar busca"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+                  {filteredUsers.length === 0 && (
+                    <div className="p-6 text-center text-xs text-slate-500 bg-white space-y-2">
+                      {isLoadingUsers ? (
+                        <div className="flex items-center justify-center gap-2 text-slate-600">
+                          <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                          <span>Carregando equipe autorizada na nuvem...</span>
+                        </div>
+                      ) : searchTerm.trim() ? (
+                        <>
+                          <p>
+                            Nenhum servidor encontrado para <strong>"{searchTerm.trim()}"</strong>.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setSearchTerm('')}
+                            className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] cursor-pointer"
+                          >
+                            Limpar filtro de busca
+                          </button>
+                        </>
+                      ) : (
+                        <p>
+                          Nenhuma conta carregada ainda. Clique em <strong>"Atualizar Nuvem"</strong> ou cadastre um servidor no formulário acima.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {filteredUsers.map((u) => {
                     const roleInfo = ROLE_LABELS[u.role] || ROLE_LABELS.gerente;
                     const isConfirmingRemove = confirmRemoveEmail === u.email;
