@@ -620,13 +620,15 @@ export const PatrimoniosManager: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-          <button
-            onClick={() => setShowScannerModal(true)}
-            className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-          >
-            <Camera className="w-4 h-4" />
-            <span>Vistoria / Scanner</span>
-          </button>
+          {canRegisterVistoria && (
+            <button
+              onClick={() => setShowScannerModal(true)}
+              className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            >
+              <Camera className="w-4 h-4" />
+              <span>Vistoria / Scanner</span>
+            </button>
+          )}
           <button
             onClick={() => setShowEtiquetasModal(true)}
             className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
@@ -1801,7 +1803,10 @@ export const PatrimoniosManager: React.FC<Props> = ({
         }}
         onSave={handleSaveAppSheetRecord}
         initialData={editingPatrimonio}
-        totalExistingRecords={6664 + patrimonios.length}
+        totalExistingRecords={patrimonios.reduce((max, item) => {
+          const num = parseInt(String(item.etiquetaNumero || item.numeroTombamento || '').replace(/D/g, ''), 10);
+          return Number.isFinite(num) && num > max ? num : max;
+        }, 6689)}
       />
 
       {/* Modal: Ficha Detalhada do Bem */}

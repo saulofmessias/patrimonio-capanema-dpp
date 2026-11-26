@@ -95,20 +95,16 @@ function AppContent() {
           // Recupera edições, exclusões (soft delete) e sincronizações salvas no IndexedDB
           const cachedEdits = await readCachedEdits();
           const editsById = new Map<string, PatrimonioRecord>();
-          const editsByEtiqueta = new Map<string, PatrimonioRecord>();
           for (const edit of cachedEdits) {
             if (!edit || !edit.id) continue;
             editsById.set(edit.id, edit);
-            if (edit.etiquetaNumero) {
-              editsByEtiqueta.set(edit.etiquetaNumero, edit);
-            }
           }
 
+          // Mescla alterações APENAS por `id` (nunca sobrescreve outro bem do catálogo
+          // apenas por coincidência de etiquetaNumero, o que antes duplicava bens novos).
           const normalized = data
             .map(p => {
-              const edited =
-                editsById.get(p.id) ||
-                (p.etiquetaNumero ? editsByEtiqueta.get(p.etiquetaNumero) : undefined);
+              const edited = editsById.get(p.id);
               return normalizePatrimonioRecord(edited ? { ...p, ...edited } : p);
             })
             .filter(p => !p.excluido);
@@ -119,7 +115,15 @@ function AppContent() {
             .filter(item => item && item.id && !baseIds.has(item.id) && !item.excluido)
             .map(normalizePatrimonioRecord);
 
-          setPatrimonios([...unicosNovos, ...normalized]);
+          const seenIds = new Set<string>();
+          const mergedUnique: PatrimonioRecord[] = [];
+          for (const rec of [...unicosNovos, ...normalized]) {
+            if (!rec.id || seenIds.has(rec.id)) continue;
+            seenIds.add(rec.id);
+            mergedUnique.push(rec);
+          }
+
+          setPatrimonios(mergedUnique);
         }
       } catch (err) {
         console.warn('Erro ao carregar base completa:', err);
@@ -358,8 +362,15 @@ function AppContent() {
     }
   };
 
-  const handleSyncComplete = () => {
-    setPatrimonios(prev => prev.map(p => ({ ...p, isOfflinePending: false })));
+  const handleSyncComplete = (syncedPatrimonioIds: string[] = []) => {
+    const syncedSet = new Set(syncedPatrimonioIds);
+    setPatrimonios(prev =>
+      prev.map(p =>
+        syncedSet.size === 0 || syncedSet.has(p.id)
+          ? { ...p, isOfflinePending: false }
+          : p
+      )
+    );
     setTransferencias(prev => prev.map(t => ({ ...t, isOfflinePending: false })));
     setVistorias(prev => prev.map(v => ({ ...v, isOfflinePending: false })));
   };
@@ -378,7 +389,7 @@ function AppContent() {
     };
 
     // Gravar no IndexedDB para persistência imediata mesmo offline ou após reload
-    void writeCachedEditsBatch([normalized]);
+    void writeCachedEditsBatch([recordToAdd]);
 
     if (isOffline) {
       addPendingItem({
@@ -388,14 +399,24 @@ function AppContent() {
       });
     } else {
       setDoc(doc(db, 'patrimonios', normalized.id), toFirestorePatrimonio(normalized, nowIso)).catch(err => {
-        console.warn('Erro ao persistir patrimônio no Firestore:', err);
+        console.warn('Erro ao persistir patrimônio no Firestore; enfileirando para reenvio offline:', err);
+        const pendingRecord: PatrimonioRecord = { ...recordToAdd, isOfflinePending: true };
+        void writeCachedEditsBatch([pendingRecord]);
+        addPendingItem({
+          type: 'patrimonio',
+          action: 'create',
+          payload: pendingRecord,
+        });
+        setPatrimonios(prev =>
+          prev.map(item => (item.id === pendingRecord.id ? pendingRecord : item))
+        );
         try {
           handleFirestoreError(err, OperationType.CREATE, 'patrimonios');
         } catch {}
       });
     }
 
-    setPatrimonios(prev => [recordToAdd, ...prev]);
+    setPatrimonios(prev => [recordToAdd, ...prev.filter(item => item.id !== recordToAdd.id)]);
     handleAddAuditLog({
       id: `log-${Date.now().toString(36)}`,
       timestamp: nowIso.replace('T', ' ').substring(0, 19),
@@ -439,7 +460,17 @@ function AppContent() {
       });
     } else {
       setDoc(doc(db, 'patrimonios', updated.id), toFirestorePatrimonio(updated, nowIso), { merge: true }).catch(err => {
-        console.warn('Erro ao atualizar no Firestore:', err);
+        console.warn('Erro ao atualizar no Firestore; enfileirando para reenvio offline:', err);
+        const pendingUpdated: PatrimonioRecord = { ...updated, isOfflinePending: true };
+        void writeCachedEditsBatch([pendingUpdated]);
+        addPendingItem({
+          type: 'patrimonio',
+          action: 'update',
+          payload: pendingUpdated,
+        });
+        setPatrimonios(prev =>
+          prev.map(item => (item.id === pendingUpdated.id ? pendingUpdated : item))
+        );
         try {
           handleFirestoreError(err, OperationType.UPDATE, 'patrimonios');
         } catch {}
@@ -611,9 +642,7 @@ function AppContent() {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-            <div className="hidden sm:block">
-              <SyncStatusBadge onSyncComplete={handleSyncComplete} />
-            </div>
+            <SyncStatusBadge onSyncComplete={handleSyncComplete} />
 
             <PWAInstallButton />
           </div>
