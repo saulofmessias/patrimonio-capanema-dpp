@@ -28,12 +28,14 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { UserAuthBar } from './components/UserAuthBar';
 import { LoginScreen } from './components/LoginScreen';
 import { db, handleFirestoreError, OperationType } from './services/firebase';
+import firebaseConfig from '../firebase-applet-config.json';
 import {
   collection,
   doc,
   getDocs,
   limit,
   onSnapshot,
+  orderBy,
   query,
   setDoc,
   where,
@@ -200,20 +202,21 @@ function AppContent() {
     let isActive = true;
     const SYNC_KEY = CLOUD_SYNC_CURSOR_KEY;
     const sessionStartIso = subtractClockSkewBuffer(new Date().toISOString());
+    let lastDeltaRunAt = 0;
 
-    const syncInitialCloudDelta = async () => {
+    const syncCloudDelta = async (force = false) => {
+      const nowMs = Date.now();
+      if (!force && nowMs - lastDeltaRunAt < 15000) return;
+      lastDeltaRunAt = nowMs;
+
       try {
-        // Reaproveita cursor legado se existir; em dispositivo novo, busca apenas o delta
-        // recente (ultimos 30 dias, limitado a 500 docs) em vez de varrer todos os 6.688 bens,
-        // preservando a cota gratuita diaria de 50.000 leituras do Firestore Spark.
-        // (Carga completa continua disponivel sob demanda no modal "Nuvem Firebase".)
-        const storedCursor =
-          localStorage.getItem(SYNC_KEY) || localStorage.getItem('patrimonios_cloud_sync_at_v1');
-        const thirtyDaysAgoIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        // Busca sempre os registros MAIS RECENTES primeiro (`orderBy('atualizadoEm', 'desc')`).
+        // Sem o `orderBy desc`, o Firestore devolvia os 500 mais antigos e cortava bens novos!
+        const storedCursor = localStorage.getItem(SYNC_KEY);
+        const thirtyDaysAgoIso = new Date(nowMs - 30 * 24 * 60 * 60 * 1000).toISOString();
         // Janela mínima de 48h garante capturar bens cadastrados offline em outros aparelhos
-        // que subiram posteriormente com timestamp anterior, gastando apenas 1 leitura por
-        // bem alterado recentemente (preservando a cota gratuita de 50k leituras/dia).
-        const fortyEightHoursAgoIso = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+        // que subiram posteriormente, gastando apenas 1 leitura por bem alterado recentemente.
+        const fortyEightHoursAgoIso = new Date(nowMs - 48 * 60 * 60 * 1000).toISOString();
         const cursorWithBuffer = storedCursor ? subtractClockSkewBuffer(storedCursor) : null;
         const deltaSince = cursorWithBuffer
           ? (cursorWithBuffer < fortyEightHoursAgoIso ? cursorWithBuffer : fortyEightHoursAgoIso)
@@ -221,7 +224,12 @@ function AppContent() {
 
         const colRef = collection(db, 'patrimonios');
         const snap = await getDocs(
-          query(colRef, where('atualizadoEm', '>', deltaSince), limit(500))
+          query(
+            colRef,
+            where('atualizadoEm', '>', deltaSince),
+            orderBy('atualizadoEm', 'desc'),
+            limit(500)
+          )
         );
         if (!isActive) return;
 
@@ -239,18 +247,35 @@ function AppContent() {
           localStorage.setItem(SYNC_KEY, new Date().toISOString());
         } catch {}
       } catch (err) {
-        console.warn('Erro na sincronização inicial de patrimônios:', err);
+        console.warn('Erro na sincronização incremental de patrimônios:', err);
         try {
           handleFirestoreError(err, OperationType.LIST, 'patrimonios');
         } catch {}
       }
     };
 
-    syncInitialCloudDelta();
+    void syncCloudDelta(true);
+
+    // Ao acordar o celular / voltar para a aba / reconectar internet, puxa novidades dos outros servidores
+    const handleFocusSync = () => {
+      if (document.visibilityState === 'visible') {
+        void syncCloudDelta(false);
+      }
+    };
+    const handleOnlineSync = () => {
+      void syncCloudDelta(true);
+    };
+    document.addEventListener('visibilitychange', handleFocusSync);
+    window.addEventListener('online', handleOnlineSync);
 
     // Listeners em tempo real para mudanças e exclusões feitas por outros aparelhos durante a sessão
     const unsubPatrimonios = onSnapshot(
-      query(collection(db, 'patrimonios'), where('atualizadoEm', '>', sessionStartIso)),
+      query(
+        collection(db, 'patrimonios'),
+        where('atualizadoEm', '>', sessionStartIso),
+        orderBy('atualizadoEm', 'desc'),
+        limit(200)
+      ),
       (snapshot) => {
         if (!isActive || snapshot.empty) return;
         const alterados: PatrimonioRecord[] = [];
@@ -328,6 +353,8 @@ function AppContent() {
 
     return () => {
       isActive = false;
+      document.removeEventListener('visibilitychange', handleFocusSync);
+      window.removeEventListener('online', handleOnlineSync);
       unsubPatrimonios();
       unsubTransferencias();
       unsubVistorias();
@@ -679,7 +706,7 @@ function AppContent() {
             Prefeitura Municipal de Capanema • Pará — Diretoria de Patrimônio Público (DPP)
           </span>
           <span className="text-slate-400">
-            Sistema Oficial de Controle Patrimonial • Sincronizado em Nuvem
+            Sistema Oficial de Controle Patrimonial • Nuvem: <strong className="font-mono text-slate-600">{firebaseConfig.projectId}</strong>
           </span>
         </div>
       </footer>
