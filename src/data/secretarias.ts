@@ -34,6 +34,25 @@ export const SECRETARIAS_CANONICAS: LocalizacaoRecord[] = [
 /** Secretaria usada quando o bem ainda não tem linkage (ex.: "Todas" no perfil admin). */
 export const SECRETARIA_TODAS = 'Todas';
 
+/** Gerentes titulares oficiais das 15 Secretarias e Órgãos de Capanema (PA). */
+export const GERENTES_LIST = [
+  { id: 1, nome: 'CLAUDIONOR MOUREIRA', secretaria: 'GABINETE DO PREFEITO' },
+  { id: 2, nome: 'JOSÉ OLÍMPIO NETO', secretaria: 'SECRETARIA DE ADMINISTRAÇÃO' },
+  { id: 3, nome: 'CELIA JANETE DA COSTA MOREIRA', secretaria: 'SECRETARIA DE ASSISTÊNCIA SOCIAL' },
+  { id: 4, nome: 'ANDREZA DE NAZARÉ OLIVEIRA DA COSTA', secretaria: 'SECRETARIA DE COMUNICAÇÃO' },
+  { id: 5, nome: 'WALCYLENE CARDOSO COSTA', secretaria: 'SECRETARIA DE EDUCAÇÃO' },
+  { id: 6, nome: 'PAULO ROBERTO SOTILLO DE LIMA FILHO', secretaria: 'SECRETARIA DE SAÚDE' },
+  { id: 7, nome: 'ARMANDO MUNECHIKA', secretaria: 'SECRETARIA DE AGRICULTURA' },
+  { id: 8, nome: 'CELINA MARIA BARBOSA FARIAS', secretaria: 'SECRETARIA DE CULTURA' },
+  { id: 9, nome: 'JOSÉ JUSTO DOS SANTOS RAMOS JUNIOR', secretaria: 'SECRETARIA DE DESPORTO E LAZER' },
+  { id: 10, nome: 'HELENA CLAUDIA PINHEIRO SILVA', secretaria: 'SECRETARIA DE FINANÇAS' },
+  { id: 11, nome: 'ANTONIO MARIA DE NAZARE MOREIRA', secretaria: 'SECRETARIA DE INDÚSTRIA, COMÉRCIO, MINERAÇÃO E TURISMO' },
+  { id: 12, nome: 'ALEX ALLAN MOREIRA SOUZA', secretaria: 'SECRETARIA DE MEIO AMBIENTE' },
+  { id: 13, nome: 'ELVIRA NASCIMENTO MAGALHÃES BARROS', secretaria: 'SECRETARIA DE PLANEJAMENTO' },
+  { id: 14, nome: 'ALEXANDRE KLAUTAU LEITE', secretaria: 'SECRETARIA DE TRÂNSITO' },
+  { id: 15, nome: 'ELCIO PEREIRA RIBEIRO', secretaria: 'SECRETARIA DE URBANISMO, OBRAS E VIAÇÃO' },
+];
+
 /**
  * Remove acentos, normaliza espaços e aplica correções de grafia conhecidas.
  * Ex.: "SECRETARIA DE ASSITENCIA SOCIAL" -> "SECRETARIA DE ASSISTENCIA SOCIAL"

@@ -2,8 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { User as FirebaseUser, onAuthStateChanged } from 'firebase/auth';
 import { auth, signInWithGoogle, logoutFirebase, db } from '../services/firebase';
 import { collection, doc, getDoc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
-import { GERENTES_LIST } from '../components/AppSheetPatrimonioForm';
-import { canOperarNaSecretaria } from '../data/secretarias';
+import { canOperarNaSecretaria, GERENTES_LIST } from '../data/secretarias';
 import { handleFirestoreError, OperationType } from '../services/firebase';
 
 export type UserRole = 'admin' | 'gerente' | 'cadastrador' | 'vistoriador' | 'leitor';

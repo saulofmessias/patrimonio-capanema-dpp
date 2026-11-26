@@ -10,7 +10,7 @@ import { PatrimonioRecord, VistoriaRecord } from '../types/appsheet';
 import { buildEtiquetaQrFicha, extractCodigoFromQrData, findPatrimonioByCodigo } from '../utils/etiquetaQr';
 import { compressImageFile } from '../utils/photoStorage';
 import { fetchAndCacheCloudPhoto } from '../utils/cloudPhotoSync';
-import { GERENTES_LIST } from './AppSheetPatrimonioForm';
+import { GERENTES_LIST } from '../data/secretarias';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {

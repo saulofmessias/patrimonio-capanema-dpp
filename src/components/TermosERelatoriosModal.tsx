@@ -6,7 +6,7 @@ import {
   TrendingUp, Send, FileSpreadsheet, ListFilter, MapPin
 } from 'lucide-react';
 import { PatrimonioRecord, TransferenciaRecord } from '../types/appsheet';
-import { GERENTES_LIST } from './AppSheetPatrimonioForm';
+import { GERENTES_LIST } from '../data/secretarias';
 import { gerarRelatorioPdfTombamentoDescricao } from '../utils/pdfRelatorioSimplificado';
 import { MultiDepartamentoSelector } from './MultiDepartamentoSelector';
 import { MultiLocalSelector } from './MultiLocalSelector';

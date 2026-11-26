@@ -17,7 +17,7 @@ import {
   Share2
 } from 'lucide-react';
 import { useAuth, UserRole, AuthorizedUserRecord } from '../context/AuthContext';
-import { GERENTES_LIST } from './AppSheetPatrimonioForm';
+import { GERENTES_LIST } from '../data/secretarias';
 
 interface TeamAccessModalProps {
   isOpen: boolean;
