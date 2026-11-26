@@ -123,6 +123,17 @@ export function parseCadastroTimestamp(raw?: string | null): number {
 }
 
 /**
+ * Retorna a data de cadastro normalizada como YYYY-MM-DD (calendário local)
+ * para comparação exata em filtros de período (De / Até).
+ */
+export function parseCadastroIsoDate(raw?: string | null): string | null {
+  const formatted = formatCadastroDate(raw, false);
+  const br = formatted.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!br) return null;
+  return `${br[3]}-${br[2]}-${br[1]}`;
+}
+
+/**
  * Converte ID numérico de gerente legado do AppSheet (ex: "5") para o nome oficial do servidor responsável.
  */
 export function formatResponsavelNome(responsavel?: string | null): string {

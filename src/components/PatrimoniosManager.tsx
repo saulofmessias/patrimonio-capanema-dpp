@@ -13,7 +13,7 @@ import { fetchAndCacheCloudPhoto, isPhotoKnownMissingInCloud } from '../utils/cl
 import { useAuth } from '../context/AuthContext';
 import { MultiDepartamentoSelector } from './MultiDepartamentoSelector';
 import { MultiLocalSelector } from './MultiLocalSelector';
-import { formatCadastroDate, formatResponsavelNome, parseCadastroTimestamp } from '../utils/patrimonioFormatters';
+import { formatCadastroDate, formatResponsavelNome, parseCadastroIsoDate, parseCadastroTimestamp } from '../utils/patrimonioFormatters';
 import { 
   Building2, Search, Plus, Filter, ArrowRightLeft, ClipboardCheck, 
   FileText, CheckCircle2, AlertCircle, Eye, Edit, Trash2, Printer, 
@@ -50,7 +50,7 @@ export const PatrimoniosManager: React.FC<Props> = ({
   initialBemToOpen,
   onConsumeInitialBem,
 }) => {
-  const { profile, canEditSecretaria, canCreatePatrimonio, canRegisterVistoria, isAdmin } = useAuth();
+  const { profile, authorizedUsers, canEditSecretaria, canCreatePatrimonio, canRegisterVistoria, isAdmin } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<'bens' | 'transferencias' | 'vistorias' | 'localizacoes'>('bens');
   const [localizacoes] = useState<LocalizacaoRecord[]>(INITIAL_LOCALIZACOES);
   const [sliceFilter, setSliceFilter] = useState<string>('todos');
@@ -66,6 +66,9 @@ export const PatrimoniosManager: React.FC<Props> = ({
   );
   const [selectedLocais, setSelectedLocais] = useState<string[]>([]);
   const [selectedDepartamentos, setSelectedDepartamentos] = useState<string[]>([]);
+  const [selectedCadastradoPor, setSelectedCadastradoPor] = useState<string>('Todos');
+  const [dataCadastroInicio, setDataCadastroInicio] = useState<string>('');
+  const [dataCadastroFim, setDataCadastroFim] = useState<string>('');
   const [viewMode, setViewMode] = useState<'tabela' | 'cards'>('tabela');
 
   // Ajustar filtro automaticamente ao trocar de perfil ou secretaria lotada
@@ -160,10 +163,59 @@ export const PatrimoniosManager: React.FC<Props> = ({
   const [sortField, setSortField] = useState<'etiqueta' | 'descricao' | 'secretaria' | 'data' | 'valor'>('etiqueta');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc'); // mais recentes primeiro
 
+  // Lista de usuários (Criado_Por) com contagem de bens para o filtro por usuário
+  const usuariosCadastradores = useMemo(() => {
+    const counts = new Map<string, number>();
+    const base = selectedSecretaria === 'Todas'
+      ? patrimonios
+      : patrimonios.filter(p => p.secretariaSetor === selectedSecretaria);
+
+    for (const p of base) {
+      const email = (p.cadastradoPor || '').trim().toLowerCase();
+      if (!email) continue;
+      counts.set(email, (counts.get(email) || 0) + 1);
+    }
+
+    const nomesPorEmail = new Map<string, string>();
+    for (const u of authorizedUsers) {
+      if (u.email && u.nome) {
+        nomesPorEmail.set(u.email.trim().toLowerCase(), u.nome.trim());
+      }
+    }
+    if (profile?.email && profile?.nome) {
+      nomesPorEmail.set(profile.email.trim().toLowerCase(), profile.nome.trim());
+    }
+
+    return Array.from(counts.entries())
+      .map(([email, count]) => ({
+        email,
+        nome: nomesPorEmail.get(email) || '',
+        count,
+      }))
+      .sort((a, b) => b.count - a.count || a.email.localeCompare(b.email, 'pt-BR'));
+  }, [patrimonios, selectedSecretaria, authorizedUsers, profile?.email, profile?.nome]);
+
+  const toLocalIsoDate = (date: Date): string => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  };
+
+  const hasUserOrDateFilter =
+    selectedCadastradoPor !== 'Todos' || Boolean(dataCadastroInicio) || Boolean(dataCadastroFim);
+
   // Reset de página sempre que mudar a busca ou filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedSecretaria, selectedLocais, selectedDepartamentos, sliceFilter]);
+  }, [
+    searchQuery,
+    selectedSecretaria,
+    selectedLocais,
+    selectedDepartamentos,
+    selectedCadastradoPor,
+    dataCadastroInicio,
+    dataCadastroFim,
+    sliceFilter,
+  ]);
 
   // Modais
   const [showNewPatrimonioModal, setShowNewPatrimonioModal] = useState(false);
@@ -299,6 +351,20 @@ export const PatrimoniosManager: React.FC<Props> = ({
       if (!match) return false;
     }
 
+    // Usuário cadastrador (Criado_Por) filter
+    if (selectedCadastradoPor !== 'Todos') {
+      const autorBem = (p.cadastradoPor || '').trim().toLowerCase();
+      if (autorBem !== selectedCadastradoPor) return false;
+    }
+
+    // Período de cadastro (De / Até) filter
+    if (dataCadastroInicio || dataCadastroFim) {
+      const isoDate = parseCadastroIsoDate(p.dataCadastro || p.atualizadoEm);
+      if (!isoDate) return false;
+      if (dataCadastroInicio && isoDate < dataCadastroInicio) return false;
+      if (dataCadastroFim && isoDate > dataCadastroFim) return false;
+    }
+
     // Text search
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -323,13 +389,42 @@ export const PatrimoniosManager: React.FC<Props> = ({
           p.secretariaSetor.toLowerCase().includes(q) ||
           (p.departamento && p.departamento.toLowerCase().includes(q)) ||
           (p.localizacaoExata && p.localizacaoExata.toLowerCase().includes(q)) ||
+          (p.cadastradoPor && p.cadastradoPor.toLowerCase().includes(q)) ||
           ((p.dataCadastro || p.atualizadoEm) && formatCadastroDate(p.dataCadastro || p.atualizadoEm, false).toLowerCase().includes(q));
         if (!match) return false;
       }
     }
 
     return true;
-  }), [patrimonios, sliceFilter, selectedSecretaria, selectedLocais, selectedDepartamentos, searchQuery]);
+  }), [
+    patrimonios,
+    sliceFilter,
+    selectedSecretaria,
+    selectedLocais,
+    selectedDepartamentos,
+    selectedCadastradoPor,
+    dataCadastroInicio,
+    dataCadastroFim,
+    searchQuery,
+  ]);
+
+  // Quando há filtro por Usuário ou Data ativo, o Relatório PDF herda esse recorte automaticamente
+  const patrimoniosParaRelatorio = useMemo(() => {
+    if (!hasUserOrDateFilter) return patrimonios;
+    return patrimonios.filter((p) => {
+      if (selectedCadastradoPor !== 'Todos') {
+        const autorBem = (p.cadastradoPor || '').trim().toLowerCase();
+        if (autorBem !== selectedCadastradoPor) return false;
+      }
+      if (dataCadastroInicio || dataCadastroFim) {
+        const isoDate = parseCadastroIsoDate(p.dataCadastro || p.atualizadoEm);
+        if (!isoDate) return false;
+        if (dataCadastroInicio && isoDate < dataCadastroInicio) return false;
+        if (dataCadastroFim && isoDate > dataCadastroFim) return false;
+      }
+      return true;
+    });
+  }, [patrimonios, hasUserOrDateFilter, selectedCadastradoPor, dataCadastroInicio, dataCadastroFim]);
 
   // Sorting
   const sortedBens = useMemo(() => [...filteredBens].sort((a, b) => {
@@ -918,6 +1013,126 @@ export const PatrimoniosManager: React.FC<Props> = ({
                 </button>
               </div>
             </div>
+
+            {/* Linha de filtros: Cadastrado por (Usuário) e Período de Cadastro (Data) */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-1 items-center">
+              <div className="sm:col-span-4 relative">
+                <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <select
+                  value={selectedCadastradoPor}
+                  onChange={(e) => setSelectedCadastradoPor(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-700 focus:ring-2 focus:ring-blue-500"
+                  title="Filtrar bens pelo usuário que cadastrou (Criado_Por)"
+                >
+                  <option value="Todos">Cadastrado por: Todos os usuários</option>
+                  {usuariosCadastradores.map((u) => (
+                    <option key={u.email} value={u.email}>
+                      {u.nome ? `${u.nome} (${u.email})` : u.email} — {u.count}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="sm:col-span-5 grid grid-cols-2 gap-2">
+                <label className="relative flex items-center bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs focus-within:ring-2 focus-within:ring-blue-500 focus-within:bg-white">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase mr-1.5 shrink-0">De:</span>
+                  <input
+                    type="date"
+                    value={dataCadastroInicio}
+                    onChange={(e) => setDataCadastroInicio(e.target.value)}
+                    className="w-full bg-transparent text-xs text-slate-700 focus:outline-none min-w-0"
+                    title="Data inicial de cadastro"
+                  />
+                </label>
+
+                <label className="relative flex items-center bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs focus-within:ring-2 focus-within:ring-blue-500 focus-within:bg-white">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase mr-1.5 shrink-0">Até:</span>
+                  <input
+                    type="date"
+                    value={dataCadastroFim}
+                    onChange={(e) => setDataCadastroFim(e.target.value)}
+                    className="w-full bg-transparent text-xs text-slate-700 focus:outline-none min-w-0"
+                    title="Data final de cadastro"
+                  />
+                </label>
+              </div>
+
+              <div className="sm:col-span-3 flex flex-wrap items-center gap-1.5 justify-start sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const hoje = toLocalIsoDate(new Date());
+                    setDataCadastroInicio(hoje);
+                    setDataCadastroFim(hoje);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-800 border border-slate-200 text-[11px] font-bold transition-colors cursor-pointer"
+                  title="Filtrar bens cadastrados hoje"
+                >
+                  Hoje
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const hoje = new Date();
+                    const seteDias = new Date(hoje.getTime() - 6 * 24 * 60 * 60 * 1000);
+                    setDataCadastroInicio(toLocalIsoDate(seteDias));
+                    setDataCadastroFim(toLocalIsoDate(hoje));
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-800 border border-slate-200 text-[11px] font-bold transition-colors cursor-pointer"
+                  title="Filtrar bens cadastrados nos últimos 7 dias"
+                >
+                  7 dias
+                </button>
+                {profile?.email && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCadastradoPor(profile.email.trim().toLowerCase())}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-800 border border-slate-200 text-[11px] font-bold transition-colors cursor-pointer"
+                    title="Filtrar bens cadastrados por você"
+                  >
+                    Meus
+                  </button>
+                )}
+                {hasUserOrDateFilter && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCadastradoPor('Todos');
+                      setDataCadastroInicio('');
+                      setDataCadastroFim('');
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                    title="Limpar filtro de usuário e data"
+                  >
+                    <X className="w-3 h-3" />
+                    <span>Limpar</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {hasUserOrDateFilter && (
+              <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[11px] text-blue-900 bg-blue-50 border border-blue-200 rounded-xl px-3 py-1.5">
+                <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>
+                  Filtro ativo:{' '}
+                  <strong>{filteredBens.length.toLocaleString('pt-BR')}</strong> bem(ns) encontrado(s)
+                  {selectedCadastradoPor !== 'Todos' && (
+                    <> • Usuário: <strong className="font-mono">{selectedCadastradoPor}</strong></>
+                  )}
+                  {(dataCadastroInicio || dataCadastroFim) && (
+                    <>
+                      {' '}• Período:{' '}
+                      <strong>
+                        {dataCadastroInicio ? dataCadastroInicio.split('-').reverse().join('/') : 'início'}
+                        {' até '}
+                        {dataCadastroFim ? dataCadastroFim.split('-').reverse().join('/') : 'hoje'}
+                      </strong>
+                    </>
+                  )}
+                </span>
+              </div>
+            )}
 
             {/* Chips dos Locais / Unidades Selecionados no Filtro */}
             {selectedLocais.length > 0 && (
@@ -2267,7 +2482,7 @@ export const PatrimoniosManager: React.FC<Props> = ({
       <TermosERelatoriosModal
         isOpen={showTermosERelatoriosModal}
         onClose={() => setShowTermosERelatoriosModal(false)}
-        patrimonios={patrimonios}
+        patrimonios={patrimoniosParaRelatorio}
         transferencias={transferencias}
         initialTipo={termoModalInitialTipo}
         initialSecretaria={selectedSecretaria}
