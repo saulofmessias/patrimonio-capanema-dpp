@@ -9,12 +9,35 @@ import {
 } from './photoStorage';
 
 const UPLOADED_CLOUD_PHOTOS_KEY = 'capanema_cloud_photos_uploaded_v1';
+const MISSING_CLOUD_PHOTOS_KEY = 'capanema_cloud_photos_missing_v1';
 const MAX_DATA_URL_LENGTH = 360000;
 const VALID_DOC_ID_REGEX = /^[a-zA-Z0-9_-]{1,128}$/;
 
-// Evita leituras repetidas no Firestore na mesma sessão para fotos ainda não enviadas
-const missingCloudPhotoIds = new Set<string>();
+function loadMissingPhotoSet(): Set<string> {
+  if (typeof localStorage === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(MISSING_CLOUD_PHOTOS_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set<string>(parsed) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function persistMissingPhotoSet(set: Set<string>): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(MISSING_CLOUD_PHOTOS_KEY, JSON.stringify(Array.from(set).slice(-3000)));
+  } catch {
+    // Ignora limite de localStorage
+  }
+}
+
+// Evita leituras repetidas no Firestore entre sessões para fotos que não existem na nuvem
+const missingCloudPhotoIds = loadMissingPhotoSet();
 const inFlightRequests = new Map<string, Promise<string | null>>();
+let cloudPhotoQuotaExhausted = false;
 
 /**
  * Normaliza qualquer caminho ou nome de arquivo AppSheet para um ID determinístico válido no Firestore.
@@ -62,6 +85,12 @@ export function markCloudPhotosUploaded(docIds: string[]): number {
 
 export function clearMissingCloudPhotoCache(): void {
   missingCloudPhotoIds.clear();
+  cloudPhotoQuotaExhausted = false;
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.removeItem(MISSING_CLOUD_PHOTOS_KEY);
+    } catch {}
+  }
 }
 
 /**
@@ -304,8 +333,8 @@ export async function fetchAndCacheCloudPhoto(fotoBem?: string): Promise<string 
     return null;
   }
 
-  // Só consulta a nuvem se autenticado e online
-  if (!auth.currentUser || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+  // Só consulta a nuvem se autenticado, online e sem bloqueio de cota na sessão
+  if (cloudPhotoQuotaExhausted || !auth.currentUser || (typeof navigator !== 'undefined' && !navigator.onLine)) {
     return null;
   }
 
@@ -325,8 +354,13 @@ export async function fetchAndCacheCloudPhoto(fotoBem?: string): Promise<string 
         }
       }
       missingCloudPhotoIds.add(docId);
+      persistMissingPhotoSet(missingCloudPhotoIds);
       return null;
     } catch (err) {
+      const msg = (err instanceof Error ? err.message : String(err || '')).toLowerCase();
+      if (msg.includes('resource-exhausted') || msg.includes('resource_exhausted') || msg.includes('quota')) {
+        cloudPhotoQuotaExhausted = true;
+      }
       console.warn(`Aviso ao buscar foto na nuvem (${docId}):`, err);
       return null;
     } finally {

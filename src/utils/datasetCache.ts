@@ -21,7 +21,7 @@ const CACHE_KEY = 'patrimonios_capanema';
 const LEGACY_LOCALSTORAGE_EDITS_KEY = 'patrimonios_edicoes_capanema_v3';
 
 export const CACHE_VERSION = 'v4';
-export const CLOUD_SYNC_CURSOR_KEY = 'patrimonios_cloud_sync_at_v2';
+export const CLOUD_SYNC_CURSOR_KEY = 'patrimonios_cloud_sync_at_v3';
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

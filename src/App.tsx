@@ -27,7 +27,7 @@ import {
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { UserAuthBar } from './components/UserAuthBar';
 import { LoginScreen } from './components/LoginScreen';
-import { db, testConnection, handleFirestoreError, OperationType } from './services/firebase';
+import { db, handleFirestoreError, OperationType } from './services/firebase';
 import {
   collection,
   doc,
@@ -70,10 +70,8 @@ function AppContent() {
   });
   const [initialBemToOpen, setInitialBemToOpen] = useState<PatrimonioRecord | null>(null);
 
-  // Auto-carregar base completa dos bens reais de Capanema e testar Firestore
+  // Auto-carregar base completa dos bens reais de Capanema (zero leituras desnecessárias na abertura)
   useEffect(() => {
-    testConnection().catch(err => console.warn('Conexão inicial Firestore:', err));
-
     const loadFullCapanemaDataset = async () => {
       try {
         // 1) Catalogo em cache local (IndexedDB): leitura instantanea e funciona offline.

@@ -1,6 +1,6 @@
 {
   "firestore": {
-    "database": "ai-studio-migraoappsheetsi-59f5d660-88bd-4169-a19c-d153bad98bcb",
+    "database": "(default)",
     "rules": "firestore.rules"
   },
   "hosting": {

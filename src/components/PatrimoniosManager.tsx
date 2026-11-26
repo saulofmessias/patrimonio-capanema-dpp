@@ -376,48 +376,9 @@ export const PatrimoniosManager: React.FC<Props> = ({
     [sortedBens, currentPage, itemsPerPage]
   );
 
-  // Buscar fotos da página atual na nuvem sob demanda (apenas itens ainda não cacheados; 1 leitura única por foto)
-  const paginatedPhotoKeys = useMemo(
-    () =>
-      paginatedBens
-        .map((b) => (b.fotoBem || '').trim())
-        .filter((f) => Boolean(f) && !f.startsWith('http') && !f.startsWith('data:image'))
-        .join('|'),
-    [paginatedBens]
-  );
-
-  useEffect(() => {
-    if (!paginatedPhotoKeys) return;
-    let active = true;
-    const keys = paginatedPhotoKeys.split('|').filter(Boolean);
-    const missing = keys.filter((raw) => {
-      const clean = raw.toLowerCase();
-      const filename = clean.split('/').pop() || '';
-      if (photosMap[clean] || (filename && photosMap[filename])) return false;
-      return !isPhotoKnownMissingInCloud(raw);
-    });
-
-    if (missing.length === 0) return;
-
-    (async () => {
-      const BATCH = 5;
-      for (let i = 0; i < missing.length; i += BATCH) {
-        if (!active) break;
-        const slice = missing.slice(i, i + BATCH);
-        const results = await Promise.all(
-          slice.map(async (raw) => ({ raw, url: await fetchAndCacheCloudPhoto(raw) }))
-        );
-        if (!active) break;
-        results.forEach(({ raw, url }) => {
-          if (url) handlePhotoResolved(raw, url);
-        });
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [paginatedPhotoKeys, handlePhotoResolved]);
+  // Economia de cota Firestore: na listagem da tabela exibimos apenas fotos embutidas (data:image/http)
+  // ou já salvas no cache local IndexedDB (0 leituras na nuvem). Fotos legadas do AppSheet são buscadas
+  // na nuvem apenas sob demanda ao abrir a Ficha do Bem, Editar ou Vistoria.
 
   const handleToggleSort = (field: 'etiqueta' | 'descricao' | 'secretaria' | 'data' | 'valor') => {
     if (sortField === field) {

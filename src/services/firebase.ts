@@ -6,8 +6,11 @@ import firebaseConfig from '../../firebase-applet-config.json';
 // Initialize Firebase App
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// CRITICAL: Initialize Firestore with firestoreDatabaseId as required by AI Studio
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Usa banco nomeado quando configurado (AI Studio) ou o banco padrão "(default)" em projetos Firebase Spark comuns
+export const db =
+  firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
+    ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+    : getFirestore(app);
 
 // Initialize Firebase Auth
 export const auth = getAuth(app);

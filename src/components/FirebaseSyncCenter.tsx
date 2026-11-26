@@ -43,10 +43,12 @@ export const FirebaseSyncCenter: React.FC<Props> = ({
   // Estados de Download
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
-  // Testar conexão ao abrir
+  // Testar conexão apenas quando o Admin abrir o modal Nuvem Firebase (0 leituras ao carregar o app)
   useEffect(() => {
-    verificarConexao();
-  }, []);
+    if (isOpen) {
+      void verificarConexao();
+    }
+  }, [isOpen]);
 
   const verificarConexao = async () => {
     setIsTesting(true);
@@ -273,7 +275,7 @@ export const FirebaseSyncCenter: React.FC<Props> = ({
                   {remoteCount !== null ? `${remoteCount.toLocaleString('pt-BR')} docs` : (isCounting ? 'Contando...' : 'patrimonios')}
                 </div>
                 <span className="text-[10px] text-slate-500 truncate block">
-                  BD: {firebaseConfig.firestoreDatabaseId.slice(0, 20)}...
+                  BD: {(firebaseConfig.firestoreDatabaseId || '(default)').length > 20 ? `${firebaseConfig.firestoreDatabaseId.slice(0, 20)}...` : (firebaseConfig.firestoreDatabaseId || '(default)')}
                 </span>
               </div>
             </div>
