@@ -95,7 +95,6 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
   totalExistingRecords = 6664
 }) => {
   const { profile } = useAuth();
-  if (!isOpen) return null;
 
   const isLockedToOwnSecretaria =
     profile?.role === 'gerente' &&
@@ -120,6 +119,7 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
 
   // Resolver preview do cache IndexedDB quando fotoUrl for caminho relativo do AppSheet
   useEffect(() => {
+    if (!isOpen) return;
     let active = true;
     if (!fotoUrl) {
       setFotoPreviewUrl('');
@@ -136,7 +136,7 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
     return () => {
       active = false;
     };
-  }, [fotoUrl]);
+  }, [fotoUrl, isOpen]);
 
   // Sincronizar todos os campos quando o modal abre ou initialData muda
   useEffect(() => {
@@ -302,6 +302,7 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
 
   // Generate QR code when fields change (Ficha completa legível diretamente na câmera de qualquer celular)
   useEffect(() => {
+    if (!isOpen) return;
     const valorQr = (etiquetaNumero || idPatrimonio || '').trim();
     if (!valorQr) return;
     const secNome =
@@ -332,7 +333,7 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
       .then(url => { if (!cancelado) setQrCodeDataUrl(url); })
       .catch(err => console.error('Erro gerando QR Code:', err));
     return () => { cancelado = true; };
-  }, [etiquetaNumero, idPatrimonio, nomePatrimonio, status, localizacaoId, local, departamento]);
+  }, [isOpen, etiquetaNumero, idPatrimonio, nomePatrimonio, status, localizacaoId, local, departamento]);
 
   // Handle Photo selection com compressão automática para nuvem/offline
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -405,6 +406,8 @@ export const AppSheetPatrimonioForm: React.FC<Props> = ({
     onSave(savedRecord);
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-2 sm:p-4 overflow-y-auto backdrop-blur-xs">
