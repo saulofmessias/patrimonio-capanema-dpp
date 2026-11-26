@@ -212,8 +212,13 @@ function AppContent() {
         const storedCursor =
           localStorage.getItem(SYNC_KEY) || localStorage.getItem('patrimonios_cloud_sync_at_v1');
         const thirtyDaysAgoIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        const deltaSince = storedCursor
-          ? subtractClockSkewBuffer(storedCursor)
+        // Janela mínima de 48h garante capturar bens cadastrados offline em outros aparelhos
+        // que subiram posteriormente com timestamp anterior, gastando apenas 1 leitura por
+        // bem alterado recentemente (preservando a cota gratuita de 50k leituras/dia).
+        const fortyEightHoursAgoIso = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+        const cursorWithBuffer = storedCursor ? subtractClockSkewBuffer(storedCursor) : null;
+        const deltaSince = cursorWithBuffer
+          ? (cursorWithBuffer < fortyEightHoursAgoIso ? cursorWithBuffer : fortyEightHoursAgoIso)
           : thirtyDaysAgoIso;
 
         const colRef = collection(db, 'patrimonios');

@@ -215,10 +215,14 @@ async function runSyncQueue(
       if (item.action === 'delete') {
         await deleteDoc(doc(db, colName, docId));
       } else {
+        // Sempre carimba `atualizadoEm` com o instante real da subida para a nuvem
+        // (mantendo `dataCadastro` original). Isso garante que o listener em tempo real
+        // (`onSnapshot`) e o delta de outros aparelhos (PC) recebam na hora bens
+        // que ficaram horas salvos offline no celular antes de sincronizar.
         const nowIso = new Date().toISOString();
         const payload = toFirestorePayload(item.type, {
           ...rawPayload,
-          atualizadoEm: rawPayload.atualizadoEm || nowIso,
+          atualizadoEm: nowIso,
         });
         if (item.action === 'create') {
           await setDoc(doc(db, colName, docId), payload);
@@ -238,6 +242,7 @@ async function runSyncQueue(
           if (idbRec && idbRec.id) {
             clearedIdbRecords.push({
               ...idbRec,
+              atualizadoEm: new Date().toISOString(),
               isOfflinePending: false,
             });
           }
