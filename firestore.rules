@@ -76,8 +76,8 @@ service cloud.firestore {
       return isBootstrapAdmin() || (isVerified() && effectiveRole() in ['admin', 'gerente']);
     }
 
-    // Gerente Setorial Cadastrador: acesso a todas as 15 secretarias apenas para Cadastrar Novo Bem
-    // (nao pode editar, transferir, vistoriar ou excluir bens existentes).
+    // Cadastrador: acesso a todas as 15 secretarias para Cadastrar Novo Bem e registrar vistoria
+    // (nao pode editar, transferir ou excluir bens existentes).
     function isCadastrador() {
       return isVerified() && effectiveRole() == 'cadastrador';
     }
@@ -220,7 +220,8 @@ service cloud.firestore {
     // ==================================================================
     match /vistorias/{vistoriaId} {
       allow read: if isAutorizado();
-      allow create, update: if podeRegistrarVistoria();
+      allow create: if podeRegistrarVistoria() || isCadastrador();
+      allow update: if podeRegistrarVistoria();
       allow delete: if isAdmin();
     }
 

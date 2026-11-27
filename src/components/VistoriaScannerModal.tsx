@@ -393,6 +393,14 @@ export const VistoriaScannerModal: React.FC<Props> = ({
     const dataHoje = new Date().toISOString().split('T')[0];
     const vistoriadorNome = profile?.nome || 'Comissão Setorial de Patrimônio / DPP';
 
+    const isCadastradorSemEdicao = profile?.role === 'cadastrador';
+    const localNota =
+      isCadastradorSemEdicao &&
+      novaLocalizacao.trim() &&
+      novaLocalizacao.trim() !== (scannedBem.local || scannedBem.localizacaoExata || '')
+        ? ` Local observado: ${novaLocalizacao.trim()}.`
+        : '';
+
     const novaVistoria: VistoriaRecord = {
       id: vistoriaId,
       patrimonioId: scannedBem.id,
@@ -401,25 +409,29 @@ export const VistoriaScannerModal: React.FC<Props> = ({
       dataVistoria: dataHoje,
       statusEncontrado: statusEncontrado,
       vistoriador: vistoriadorNome,
-      parecer: parecerTecnico.trim() || `Vistoria física realizada. Estado de conservação: ${estadoConservacao}.`,
+      parecer:
+        (parecerTecnico.trim() || `Vistoria física realizada. Estado de conservação: ${estadoConservacao}.`) +
+        localNota,
       fotoVistoria: fotoVistoriaBase64 || undefined
     };
 
     // 1. Persistir vistoria via serializador unico (Firestore online ou fila offline)
     onAddVistoria(novaVistoria);
 
-    // 2. Atualizar o patrimônio com novo estado, localização e opcionalmente a nova foto
-    const nowIso = new Date().toISOString();
-    const shouldUpdateMainPhoto = Boolean(atualizarFotoPrincipal && fotoVistoriaBase64);
-    const bemAtualizado: PatrimonioRecord = {
-      ...scannedBem,
-      estadoConservacao: estadoConservacao,
-      local: novaLocalizacao.trim() || scannedBem.local,
-      localizacaoExata: novaLocalizacao.trim() || scannedBem.localizacaoExata,
-      fotoBem: shouldUpdateMainPhoto ? (fotoVistoriaBase64 || scannedBem.fotoBem) : scannedBem.fotoBem,
-      atualizadoEm: nowIso
-    };
-    onUpdatePatrimonio(bemAtualizado);
+    // 2. Perfil Cadastrador vistoria SEM editar o patrimônio (apenas registra o laudo de vistoria)
+    if (!isCadastradorSemEdicao) {
+      const nowIso = new Date().toISOString();
+      const shouldUpdateMainPhoto = Boolean(atualizarFotoPrincipal && fotoVistoriaBase64);
+      const bemAtualizado: PatrimonioRecord = {
+        ...scannedBem,
+        estadoConservacao: estadoConservacao,
+        local: novaLocalizacao.trim() || scannedBem.local,
+        localizacaoExata: novaLocalizacao.trim() || scannedBem.localizacaoExata,
+        fotoBem: shouldUpdateMainPhoto ? (fotoVistoriaBase64 || scannedBem.fotoBem) : scannedBem.fotoBem,
+        atualizadoEm: nowIso
+      };
+      onUpdatePatrimonio(bemAtualizado);
+    }
 
     setIsSaving(false);
     setSaveSuccess(true);
@@ -873,15 +885,17 @@ export const VistoriaScannerModal: React.FC<Props> = ({
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      <label className="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={atualizarFotoPrincipal}
-                          onChange={(e) => setAtualizarFotoPrincipal(e.target.checked)}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span>Salvar também como foto principal deste patrimônio na nuvem</span>
-                      </label>
+                      {profile?.role !== 'cadastrador' && (
+                        <label className="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={atualizarFotoPrincipal}
+                            onChange={(e) => setAtualizarFotoPrincipal(e.target.checked)}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>Salvar também como foto principal deste patrimônio na nuvem</span>
+                        </label>
+                      )}
                     </div>
                   ) : (
                     <label className="w-full h-24 border-2 border-dashed border-slate-300 rounded-xl hover:border-blue-500 flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50 hover:bg-blue-50/50">

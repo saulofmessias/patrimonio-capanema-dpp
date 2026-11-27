@@ -51,7 +51,24 @@ export const PatrimoniosManager: React.FC<Props> = ({
   onConsumeInitialBem,
 }) => {
   const { profile, authorizedUsers, canEditSecretaria, canCreatePatrimonio, canRegisterVistoria, isAdmin } = useAuth();
+  const isCadastrador = profile?.role === 'cadastrador';
   const [activeSubTab, setActiveSubTab] = useState<'bens' | 'transferencias' | 'vistorias' | 'localizacoes'>('bens');
+
+  useEffect(() => {
+    if (isCadastrador && activeSubTab !== 'bens') {
+      setActiveSubTab('bens');
+    }
+  }, [isCadastrador, activeSubTab]);
+
+  // Cadastrador visualiza EXCLUSIVAMENTE os bens cadastrados por ele mesmo
+  const visiblePatrimonios = useMemo(() => {
+    if (!isCadastrador) return patrimonios;
+    const myEmail = (profile?.email || '').trim().toLowerCase();
+    if (!myEmail) return [];
+    return patrimonios.filter(
+      (p) => (p.cadastradoPor || '').trim().toLowerCase() === myEmail
+    );
+  }, [isCadastrador, patrimonios, profile?.email]);
   const [localizacoes] = useState<LocalizacaoRecord[]>(INITIAL_LOCALIZACOES);
   const [sliceFilter, setSliceFilter] = useState<string>('todos');
   const [searchQuery, setSearchQuery] = useState('');
@@ -326,8 +343,8 @@ export const PatrimoniosManager: React.FC<Props> = ({
   ];
 
   // Filtering
-  // Memorizado: a base tem ~6.700 bens e esta busca roda a cada render.
-  const filteredBens = useMemo(() => patrimonios.filter(p => {
+  // Memorizado: a base tem ~6.700 bens e esta busca roda a cada render (Cadastrador vê apenas os seus).
+  const filteredBens = useMemo(() => visiblePatrimonios.filter(p => {
     // Slices filter
     if (sliceFilter === 'ativos' && p.status !== 'Ativo / Em Uso') return false;
     if (sliceFilter === 'transferencia' && p.status !== 'Em Transferência') return false;
@@ -397,7 +414,7 @@ export const PatrimoniosManager: React.FC<Props> = ({
 
     return true;
   }), [
-    patrimonios,
+    visiblePatrimonios,
     sliceFilter,
     selectedSecretaria,
     selectedLocais,
@@ -675,27 +692,30 @@ export const PatrimoniosManager: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-          {canRegisterVistoria && (
+        {!isCadastrador && (
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+            {canRegisterVistoria && (
+              <button
+                onClick={() => setShowScannerModal(true)}
+                className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <Camera className="w-4 h-4" />
+                <span>Vistoria / Scanner</span>
+              </button>
+            )}
             <button
-              onClick={() => setShowScannerModal(true)}
-              className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              onClick={() => setShowEtiquetasModal(true)}
+              className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
             >
-              <Camera className="w-4 h-4" />
-              <span>Vistoria / Scanner</span>
+              <Printer className="w-4 h-4" />
+              <span>Imprimir Etiquetas</span>
             </button>
-          )}
-          <button
-            onClick={() => setShowEtiquetasModal(true)}
-            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Imprimir Etiquetas</span>
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* KPI Cards Header */}
+      {/* KPI Cards Header (oculto para o perfil Cadastrador) */}
+      {!isCadastrador && (
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3.5 w-full max-w-full">
         <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-xs flex flex-col justify-between min-w-0">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold gap-1">
@@ -744,10 +764,38 @@ export const PatrimoniosManager: React.FC<Props> = ({
           <span className="text-[10px] text-slate-300 mt-1 truncate">Ativo Imobilizado Municipal</span>
         </div>
       </div>
+      )}
 
       {/* Main Container with Sub-navigation and Controls */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3 sm:p-5 space-y-4 w-full max-w-full overflow-hidden">
         {/* Top bar with module tabs & single-row action toolbar */}
+        {isCadastrador ? (
+          <div className="flex flex-col items-center gap-3 pb-3 border-b border-slate-100 w-full">
+            <div className="flex flex-wrap items-center justify-center gap-3 w-full py-1">
+              <button
+                type="button"
+                onClick={() => setShowScannerModal(true)}
+                className="px-5 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-md transition-all cursor-pointer active:scale-95"
+                title="Registrar vistoria em campo via QR Code (sem editar dados do bem)"
+              >
+                <Camera className="w-4 h-4 text-emerald-100 shrink-0" />
+                <span>Vistoria / Scanner</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowNewPatrimonioModal(true)}
+                className="px-7 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-extrabold flex items-center gap-2 shadow-md transition-all cursor-pointer active:scale-95"
+              >
+                <Plus className="w-5 h-5 shrink-0" />
+                <span>Novo Bem</span>
+              </button>
+            </div>
+            <div className="text-xs font-semibold text-slate-600">
+              Meus Bens Cadastrados (<strong className="text-slate-900 font-mono">{filteredBens.length}</strong>)
+            </div>
+          </div>
+        ) : (
         <div className="flex flex-col gap-3 pb-3 border-b border-slate-100 w-full max-w-full">
           {/* Linha 1: Abas do módulo (todas visíveis sem corte) */}
           <div className="w-full overflow-x-auto scrollbar-none">
@@ -885,10 +933,13 @@ export const PatrimoniosManager: React.FC<Props> = ({
             </div>
           </div>
         </div>
+        )}
 
         {/* View when in 'bens' tab */}
         {activeSubTab === 'bens' && (
           <div className="space-y-4">
+            {!isCadastrador && (
+            <>
             {/* Slices Pills and Search */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               {/* Slices equivalents */}
@@ -1132,6 +1183,9 @@ export const PatrimoniosManager: React.FC<Props> = ({
                   )}
                 </span>
               </div>
+            )}
+
+            </>
             )}
 
             {/* Chips dos Locais / Unidades Selecionados no Filtro */}
@@ -1493,16 +1547,18 @@ export const PatrimoniosManager: React.FC<Props> = ({
                           </td>
                           <td className="py-3 px-3 text-center">
                             <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => {
-                                  setBensParaEtiquetas([bem]);
-                                  setShowEtiquetasModal(true);
-                                }}
-                                className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                                title="Imprimir Etiqueta Oficial (QR Code & Código de Barras)"
-                              >
-                                <Tag className="w-4 h-4 text-emerald-600" />
-                              </button>
+                              {!isCadastrador && (
+                                <button
+                                  onClick={() => {
+                                    setBensParaEtiquetas([bem]);
+                                    setShowEtiquetasModal(true);
+                                  }}
+                                  className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                                  title="Imprimir Etiqueta Oficial (QR Code & Código de Barras)"
+                                >
+                                  <Tag className="w-4 h-4 text-emerald-600" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => setShowDetailModal(bem)}
                                 className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -1531,8 +1587,8 @@ export const PatrimoniosManager: React.FC<Props> = ({
                                 <span
                                   className="p-1.5 text-slate-300 inline-flex items-center justify-center cursor-not-allowed"
                                   title={
-                                    profile?.role === 'cadastrador'
-                                      ? 'Perfil Gerente Cadastrador: permissão somente para Cadastrar Novo Bem (sem editar ou excluir).'
+                                    isCadastrador
+                                      ? 'Perfil Cadastrador: apenas cadastro de novos bens e vistoria (sem edição ou exclusão).'
                                       : `Edição restrita: Bem sob guarda da ${bem.secretariaSetor}. Apenas o Gerente titular ou Admin pode alterar.`
                                   }
                                 >
@@ -1548,13 +1604,15 @@ export const PatrimoniosManager: React.FC<Props> = ({
                                   <ClipboardCheck className="w-4 h-4" />
                                 </button>
                               )}
-                              <button
-                                onClick={() => setShowTermoModal(bem)}
-                                className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-                                title="Emitir Termo de Responsabilidade"
-                              >
-                                <Printer className="w-4 h-4" />
-                              </button>
+                              {!isCadastrador && (
+                                <button
+                                  onClick={() => setShowTermoModal(bem)}
+                                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                                  title="Emitir Termo de Responsabilidade"
+                                >
+                                  <Printer className="w-4 h-4" />
+                                </button>
+                              )}
                               {isAdmin && onDeletePatrimonio && (
                                 <button
                                   onClick={() => handleConfirmDeleteBem(bem)}

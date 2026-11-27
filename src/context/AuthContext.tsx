@@ -301,7 +301,7 @@ export const SYSTEM_ACCOUNTS: UserProfile[] = [
   {
     uid: 'cadastrador-todas',
     email: 'cadastrador.patrimonio@capanema.pa.gov.br',
-    nome: 'Gerente Setorial Cadastrador (Todas — Só Novo Bem)',
+    nome: 'Cadastrador',
     role: 'cadastrador' as UserRole,
     secretaria: 'Todas',
     departamento: 'Equipe Volante de Tombamento (DPP)',
@@ -789,7 +789,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     (profile.role === 'admin' || profile.role === 'gerente' || profile.role === 'cadastrador');
   const canRegisterVistoria =
     !!profile &&
-    (profile.role === 'admin' || profile.role === 'gerente' || profile.role === 'vistoriador');
+    (profile.role === 'admin' ||
+      profile.role === 'gerente' ||
+      profile.role === 'cadastrador' ||
+      profile.role === 'vistoriador');
   const isAdmin = profile?.role === 'admin';
   const isRealAdmin = realProfile?.role === 'admin';
 

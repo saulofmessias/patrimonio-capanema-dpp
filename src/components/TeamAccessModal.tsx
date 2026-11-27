@@ -36,8 +36,8 @@ const ROLE_LABELS: Record<UserRole, { label: string; desc: string; badgeClass: s
     badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
   },
   cadastrador: {
-    label: 'Gerente Cadastrador (Todas — Só Novo Bem)',
-    desc: 'Acesso a todas as 15 Secretarias somente para Cadastrar Novo Bem (sem editar ou excluir)',
+    label: 'Cadastrador',
+    desc: 'Cadastra novos bens em todas as Secretarias, faz vistoria via QR Code (sem editar) e vê apenas os bens cadastrados por ele',
     badgeClass: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   },
   vistoriador: {
@@ -515,7 +515,7 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="gerente">Gerente Setorial Padrão (Edita sua Secretaria)</option>
-                      <option value="cadastrador">Gerente Setorial Cadastrador (Todas — Só Novo Bem)</option>
+                      <option value="cadastrador">Cadastrador</option>
                       <option value="vistoriador">Vistoriador de Campo (Apenas Vistoria)</option>
                       <option value="leitor">Leitor / Auditor (Somente Leitura)</option>
                       <option value="admin">Administrador Geral (DPP - Todas)</option>
@@ -538,7 +538,7 @@ export const TeamAccessModal: React.FC<TeamAccessModalProps> = ({ isOpen, onClos
                       {role === 'admin' ? (
                         <option value="Todas">Todas as 15 Secretarias (Acesso Total)</option>
                       ) : role === 'cadastrador' ? (
-                        <option value="Todas">Todas as 15 Secretarias (Somente Novo Bem)</option>
+                        <option value="Todas">Todas as 15 Secretarias (Cadastrador)</option>
                       ) : (
                         <>
                           <option value="Todas">Todas as Secretarias</option>

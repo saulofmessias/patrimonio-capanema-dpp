@@ -38,7 +38,7 @@ export const UserAuthBar: React.FC = () => {
     if (!profile) return '';
     if (profile.role === 'admin') return 'Administrador Geral (DPP)';
     if (profile.role === 'gerente') return `Gerente Setorial: ${profile.secretaria}`;
-    if (profile.role === 'cadastrador') return 'Gerente Cadastrador (Todas — Só Novo Bem)';
+    if (profile.role === 'cadastrador') return 'Cadastrador';
     if (profile.role === 'vistoriador') return `Vistoriador: ${profile.secretaria}`;
     return isDemoMode ? 'Modo Demonstração (Somente Leitura)' : 'Leitor / Auditor';
   };
@@ -131,7 +131,7 @@ export const UserAuthBar: React.FC = () => {
                   {profile?.role === 'admin'
                     ? 'Admin Geral'
                     : profile?.role === 'cadastrador'
-                    ? 'Cadastrador (Todas)'
+                    ? 'Cadastrador'
                     : profile?.secretaria.replace('SECRETARIA DE ', 'SEC. ')}
                 </strong>
                 <ChevronDown className="w-3 h-3 text-slate-400" />
@@ -166,7 +166,7 @@ export const UserAuthBar: React.FC = () => {
                             {acc.role === 'admin'
                               ? 'Acesso Total a Todas as 15 Secretarias'
                               : acc.role === 'cadastrador'
-                              ? 'Todas as 15 Secretarias — Apenas Novo Bem'
+                              ? 'Novo Bem e Vistoria sem edição (vê só seus cadastros)'
                               : acc.secretaria}
                           </div>
                         </div>
